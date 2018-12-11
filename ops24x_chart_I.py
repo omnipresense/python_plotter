@@ -6,6 +6,7 @@ import sys
 import serial
 import numpy as np
 from platform import system
+import serial.tools.list_ports
 import json
 
 import matplotlib
@@ -47,7 +48,6 @@ serial_OPS24x = serial.Serial(
     timeout=1,
     writeTimeout=2
 )
-import serial.tools.list_ports;
 print([comport.device for comport in serial.tools.list_ports.comports()])
 
 if len(sys.argv) > 1:
@@ -55,7 +55,7 @@ if len(sys.argv) > 1:
 else:
     if len(serial.tools.list_ports.comports()):
         serial_OPS24x.port = serial.tools.list_ports.comports()[0].device
-    elif system == "Linux":
+    elif system() == "Linux":
         serial_OPS24x.port = "/dev/ttyACM0"  # good for linux
     else:
         serial_OPS24x.port = "COM4"  # maybe we'll luck out on windows
