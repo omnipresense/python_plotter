@@ -88,11 +88,12 @@ def send_OPS24x_cmd(console_msg_prefix, ops24x_command):
 
 # Initialize and query Ops24x Module
 print("\nInitializing Ops24x Module")
-send_OPS24x_cmd("\nSet Power Medium: ", OPS24x_Power_Med)
+send_OPS24x_cmd("\nSet Power Medium: ", OPS24x_Power_Min)
 send_OPS24x_cmd("\nSet yes Raw data: ", OPS24x_Output_Raw)
 
-fig = plt.figure()
-ax = plt.axes()
+f, (ax1, ax2) = plt.subplots(2, 1)
+#fig = plt.figure()
+#ax1 = plt.axes()
 x_axis = np.linspace(0, NFFT - 1, NFFT)
 
 plt.ion()
@@ -110,12 +111,24 @@ try:
                 pobj = json.loads(data_rx_str)
                 if pobj.get('I'):
                     i_signal = pobj['I']
-                    #plt.clf()
-                    #plt.plot(i_signal)
-                    ax.clear()
-                    ax.plot(x_axis, i_signal)
-                    ax.set_xlabel('Samples')
-                    ax.set_ylabel('Signal amplitude')
+                    # plt.subplot(2,1,1)
+                    # plt.clf()
+                    # plt.plot(x_axis,i_signal)
+                    ax1.clear()
+                    ax1.plot(x_axis, i_signal)
+                    ax1.set_xlabel('Samples')
+                    ax1.set_ylabel('Signal amplitude')
+
+                    np_values = np.array(i_signal)
+                    mean = np.mean(np_values)
+                    np_values = np_values - mean
+                    post_fft = np.fft.rfft(np_values, NFFT*2)
+                    # plt.subplot(2,1,2)
+                    # plt.plot(x_axis,np.real(post_fft[:512]))
+                    ax2.clear()
+                    ax2.set_xlabel('BINS')
+                    ax2.plot(x_axis[:50], np.fabs(np.real(post_fft[:50])))
+
                     plt.show(block=False)
                     plt.pause(0.001)
 
@@ -130,12 +143,17 @@ try:
                 #     plt.clf()
                 #     plt.show()
 
+
             except UnicodeDecodeError:
                 print("ERROR: Prior line failed to decode. Continuing.")
             except json.decoder.JSONDecodeError:
                 print("ERROR: Prior line failed to parse. Continuing.")
                 print(data_rx_str)
                 print("ERROR-end: Resuming.")
+            except:  # catch *all* exceptions
+                e = sys.exc_info()[0]
+                print(e)
+
 ##         do_dsp()
 ##         plot_dsp()
 
