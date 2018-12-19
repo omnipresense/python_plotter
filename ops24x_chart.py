@@ -3,11 +3,11 @@
 # Import time, decimal, serial, reg expr, sys
 #
 import sys
-from time import *
 import serial
+from optparse import OptionParser
 import numpy as np
 from platform import system
-import pandas
+import serial.tools.list_ports
 import json
 
 import matplotlib
@@ -25,109 +25,191 @@ import matplotlib.pyplot as plt
 # OPS24x module setting initialization constants
 Fs = 10000
 OPS24x_Sampling_Frequency = 'SX'  # 10Ksps
-NFFT = 512  # we
+sample_count = 512  # we
+NFFT = sample_count * 2
 OPS24x_Sampling_Size512 = 'S<'  # 10Ksps
-OPS24x_Transmit_Power = 'PX'  # max power
 OPS24x_Blanks_Send_Zeros = 'BZ'
 OPS24x_Blanks_Send_Void = 'BV'
 OPS24x_Module_Information = '??'
 OPS24x_Power_Idle = 'PI'  # IDLE power
+OPS24x_Power_Min = 'PN'  # Min power
+OPS24x_Power_Med = 'PD'  # Medium power
+OPS24x_Power_Max = 'PX'  # Max power
 OPS24x_Power_Active = 'PA'  #  power ACTIVE
 OPS24x_Power_Pulse = 'PP'  #  PULSE power
 
 OPS24x_Output_NoSpeed = 'Os'  #  don't send speed values
-OPS24x_Output_Raw = 'OR'  #  do send raw data
-
-# Initialize the USB port to read from the OPS-24x module
-serial_OPS24x = serial.Serial(
-    baudrate=115200,
-    parity=serial.PARITY_NONE,
-    stopbits=serial.STOPBITS_ONE,
-    bytesize=serial.EIGHTBITS,
-    timeout=1,
-    writeTimeout=2
-)
-if len(sys.argv) > 1:
-    serial_OPS24x.port = sys.argv[1]
-else:
-    if system == "Linux":
-        serial_OPS24x.port = "/dev/ttyACM0"  # good for linux
-    else:
-        serial_OPS24x.port = "COM10 "  # maybe we'll luck out on windows
-
-serial_OPS24x.open()
-serial_OPS24x.flushInput()
-serial_OPS24x.flushOutput()
+OPS24x_Output_NoDistance = 'Od'
+OPS24x_Output_Raw = 'OR'  #  for raw data
+OPS24x_Output_NoRaw = 'Or'  #  for raw data
+OPS24x_Output_TimeSignal = 'OT' # for timedomain signal
+OPS24x_Output_NoTimeSignal = 'Ot' # for timedomain signal
 
 
 # send_OPS24x_cmd: function for sending commands to the OPS-24x module
 # console_msg_prefix is used only for printing out to console.
-def send_OPS24x_cmd(console_msg_prefix, ops24x_command):
+def send_OPS24x_cmd(serial_port, console_msg_prefix, ops24x_command):
     data_for_send_str = ops24x_command + '\n'
     data_for_send_bytes = str.encode(data_for_send_str)
     print(console_msg_prefix, ops24x_command)
-    serial_OPS24x.write(data_for_send_bytes)
-    # Initialize message verify checking
-    ser_message_start = '{'
-    ser_write_verify = False
-    # Print out module response to command string
-    while not ser_write_verify:
-        data_rx_bytes = serial_OPS24x.readline()
-        data_rx_length = len(data_rx_bytes)
-        if data_rx_length != 0:
-            data_rx_str = str(data_rx_bytes)
-            if data_rx_str.find(ser_message_start):
-                print(data_rx_str)
-                ser_write_verify = True
-    return ser_write_verify
+    try:
+        serial_port.write(data_for_send_bytes)
+        # Initialize message verify checking
+        ser_message_start = '{'
+        ser_write_verify = False
+        # Print out module response to command string
+        while not ser_write_verify:
+            data_rx_bytes = serial_port.readline()
+            data_rx_length = len(data_rx_bytes)
+            if data_rx_length != 0:
+                data_rx_str = str(data_rx_bytes)
+                if data_rx_str.find(ser_message_start):
+                    print(data_rx_str)
+                    ser_write_verify = True
+        return ser_write_verify
+    except serial.serialutil.SerialTimeoutException:
+        print("Write timeout sending command:",ops24x_command)
 
 
-# Initialize and query Ops24x Module
-print("\nInitializing Ops24x Module")
-send_OPS24x_cmd("\nSet Power IDLE: ", OPS24x_Power_Idle)
-send_OPS24x_cmd("\nSet Sampling Frequency: ", OPS24x_Sampling_Frequency)
-send_OPS24x_cmd("\nSet Sampling Size to 512: ", OPS24x_Sampling_Size512)
-send_OPS24x_cmd("\nSet Transmit Power: ", OPS24x_Transmit_Power)
-send_OPS24x_cmd("\nSet: On Blank send nothing: ", OPS24x_Blanks_Send_Void)
-send_OPS24x_cmd("\nSet No Speed data: ", OPS24x_Output_NoSpeed)
-send_OPS24x_cmd("\nSet yes Raw data: ", OPS24x_Output_Raw)
-send_OPS24x_cmd("\nDo Raw-Active: ", OPS24x_Power_Active)
+hann_window = np.hanning(sample_count)
+
+def read_plot_loop(serial_port, options):
+    f, (ax1, ax2) = plt.subplots(2, 1)
+    # fig = plt.figure()
+    # ax1 = plt.axes()
+    x_axis = np.linspace(0, sample_count - 1, sample_count)
+    plt.ion()
+    try:
+        # main loop to the program
+        serial_port.flushInput()
+        serial_port.flushOutput()
+        while serial_port.is_open:
+            data_rx_bytes = serial_port.readline()
+            data_rx_length = len(data_rx_bytes)
+            if data_rx_length != 0:
+                try:
+                    data_rx_str = str.rstrip(str(data_rx_bytes.decode('utf-8', 'strict')))
+                    #print(data_rx_str)
+                    pobj = json.loads(data_rx_str)
+
+                    signal = None
+                    if options.plot_I:
+                        if pobj.get('I'):
+                            signal = pobj['I']
+                    elif options.plot_Q:
+                        if pobj.get('Q'):
+                            signal = pobj['Q']
+                    elif options.plot_T:
+                        if pobj.get('T'):
+                            signal = pobj['T']
+
+                    if signal is None:
+                        print("Failed to get a signal input.")
+
+                    # plt.subplot(2,1,1)
+                    # plt.clf()
+                    # plt.plot(x_axis,i_signal)
+                    ax1.clear()
+                    ax1.plot(x_axis, signal)
+                    ax1.set_xlabel('Samples')
+                    ax1.set_ylabel('Signal amplitude')
+
+                    np_values = np.array(signal)
+                    if not options.plot_T:
+                        mean = np.mean(np_values)
+                        np_values = np_values - mean
+                        np_values = np_values * hann_window
+                    post_fft = np.fft.rfft(np_values, NFFT)
+                    # plt.subplot(2,1,2)
+                    # plt.plot(x_axis,np.real(post_fft[:512]))
+                    ax2.clear()
+                    ax2.set_xlabel('BINS')
+                    ax2.plot(x_axis[:50], np.fabs(np.real(post_fft[:50])))
+
+                    plt.show(block=False)
+                    plt.pause(0.001)
+
+                except UnicodeDecodeError:
+                    print("ERROR: Prior line failed to decode. Continuing.")
+                except json.decoder.JSONDecodeError:
+                    print("ERROR: Prior line failed to parse. Continuing.")
+                    print(data_rx_str)
+                    print("ERROR-end: Resuming.")
+                # except:  # catch *all* exceptions
+                #     e = sys.exc_info()[0]
+                #     print(e)
+
+    except KeyboardInterrupt:
+        print("Keyboard interrupt received. Exiting.")
 
 
-try:
-    # main loop to the program
+def main():
+    usage = "usage: %prog [options] arg"
+    parser = OptionParser(usage)
+    parser.add_option("-p", "--port", dest="port_name",
+                      help="read data from PORTNAME")
+    parser.add_option("-b", "--baud", dest="baudrate",
+                      default="115200",
+                      help="baud rate on serial port")
+    parser.add_option("-I", "--plot_I",
+                       action="store_true",
+                       dest="plot_I")
+    parser.add_option("-Q", "--plot_Q",
+                       action="store_true",
+                       dest="plot_Q")
+    parser.add_option("-T", "--plot_T",
+                       action="store_true",
+                       dest="plot_T")
+    (options, args) = parser.parse_args()
+    if options.plot_I is None and options.plot_Q is None and options.plot_T is None:
+        options.plot_I = True
+
+    # Initialize the USB port to read from the OPS-24x module
+    serial_OPS24x = serial.Serial(
+        baudrate=options.baudrate,
+        parity=serial.PARITY_NONE,
+        stopbits=serial.STOPBITS_ONE,
+        bytesize=serial.EIGHTBITS,
+        timeout=1,
+        writeTimeout=2
+    )
+    # print([comport.device for comport in serial.tools.list_ports.comports()])
+
+    port_value = "";
+    if options.port_name is None or len(options.port_name) < 1:
+        if len(serial.tools.list_ports.comports()):
+            serial_OPS24x.port = serial.tools.list_ports.comports()[0].device
+        elif system() == "Linux":
+            serial_OPS24x.port = "/dev/ttyACM0"  # good for linux
+        else:
+            serial_OPS24x.port = "COM4"  # maybe we'll luck out on windows
+    else:
+        serial_OPS24x.port = options.port_name
+
+    serial_OPS24x.open()
     serial_OPS24x.flushInput()
     serial_OPS24x.flushOutput()
-    while serial_OPS24x.is_open:
-        data_rx_bytes = serial_OPS24x.readline()
-        data_rx_length = len(data_rx_bytes)
-        if data_rx_length != 0:
-            try:
-                data_rx_str = str.rstrip(str(data_rx_bytes.decode('utf-8', 'strict')))
-                #print(data_rx_str)
-                pobj = json.loads(data_rx_str)
-                #if pobj.get('I'):
-                #    np.I = pobj['I']
-                if pobj.get('Q'):
-                    q_signal = np.array(pobj['Q'])
-                    t = np.linspace(0,NFFT-1,NFFT)
-                    fig, ax = plt.subplots()
-                    ax.plot(t, q_signal)
-                    ax.set_xlabel('Sample Events')
-                    ax.set_ylabel('Signal amplitude')
-                    plt.show()
-                    #send_OPS24x_cmd("\nDo Pulse: ", OPS24x_Power_Pulse)
-            except UnicodeDecodeError:
-                print("ERROR: Prior line failed to decode. Continuing.")
-            except json.decoder.JSONDecodeError:
-                print("ERROR: Prior line failed to parse. Continuing.")
-                print(data_rx_str)
-                print("ERROR-end: Resuming.")
-##         do_dsp()
-##         plot_dsp()
 
-except KeyboardInterrupt:
-    print("Keyboard interrupt received. Exiting.")
-finally:
-    # clean up
+    # Initialize and query Ops24x Module
+    print("\nInitializing Ops24x Module")
+    send_OPS24x_cmd(serial_OPS24x, "\nSet Power: ", OPS24x_Power_Min)
+    send_OPS24x_cmd(serial_OPS24x, "\nSet no to Distance: ", OPS24x_Output_NoDistance)
+
+    if options.plot_I or options.plot_Q:
+        send_OPS24x_cmd(serial_OPS24x, "\nSet yes Raw data: ", OPS24x_Output_Raw)
+    elif options.plot_T:
+        send_OPS24x_cmd(serial_OPS24x, "\nSet yes Time Domain data: ", OPS24x_Output_TimeSignal)
+
+    read_plot_loop(serial_OPS24x, options)
+
+    if options.plot_I or options.plot_Q:
+        send_OPS24x_cmd(serial_OPS24x, "\nSet no Raw data: ", OPS24x_Output_NoRaw)
+    elif options.plot_T:
+        send_OPS24x_cmd(serial_OPS24x, "\nSet No Time data: ", OPS24x_Output_NoTimeSignal)
+
     serial_OPS24x.close()
+    exit()
+
+
+if __name__ == "__main__":
+    main()
