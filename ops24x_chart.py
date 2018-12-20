@@ -33,15 +33,22 @@ OPS24x_Blanks_Send_Void = 'BV'
 OPS24x_Module_Information = '??'
 OPS24x_Power_Idle = 'PI'  # IDLE power
 OPS24x_Power_Min = 'PN'  # Min power
-OPS24x_Power_Med = 'PD'  # Medium power
+OPS24x_Power_Mid = 'PD'  # Medium power
 OPS24x_Power_Max = 'PX'  # Max power
 OPS24x_Power_Active = 'PA'  #  power ACTIVE
 OPS24x_Power_Pulse = 'PP'  #  PULSE power
+
+OPS24x_Wait_1kms = 'WM'  # Wait one ms between readings
+OPS24x_Wait_500ms = 'WD'
+OPS24x_Wait_200ms = 'W2'
+OPS24x_Wait_100ms = 'WC'
 
 OPS24x_Output_NoSpeed = 'Os'  #  don't send speed values
 OPS24x_Output_NoDistance = 'Od'
 OPS24x_Output_Raw = 'OR'  #  for raw data
 OPS24x_Output_NoRaw = 'Or'  #  for raw data
+OPS24x_Output_FFT = 'OF'  #  for fft data
+OPS24x_Output_NoFFT = 'Of'  #  for no fft data
 OPS24x_Output_TimeSignal = 'OT' # for timedomain signal
 OPS24x_Output_NoTimeSignal = 'Ot' # for timedomain signal
 
@@ -72,6 +79,7 @@ def send_OPS24x_cmd(serial_port, console_msg_prefix, ops24x_command):
 
 
 hann_window = np.hanning(sample_count)
+fft_bin_cutoff = 50
 
 def read_plot_loop(serial_port, options):
     f, (ax1, ax2) = plt.subplots(2, 1)
@@ -102,29 +110,34 @@ def read_plot_loop(serial_port, options):
                     elif options.plot_T:
                         if pobj.get('T'):
                             signal = pobj['T']
+                    elif options.plot_FFT:
+                        if pobj.get('FFT'):
+                            signal = pobj['FFT']
 
                     if signal is None:
                         print("Failed to get a signal input.")
 
-                    # plt.subplot(2,1,1)
-                    # plt.clf()
-                    # plt.plot(x_axis,i_signal)
                     ax1.clear()
-                    ax1.plot(x_axis, signal)
+                    ax1.grid()
+                    if options.plot_FFT:
+                        ax1.plot(x_axis[:fft_bin_cutoff], signal[:fft_bin_cutoff])
+                    else:
+                        ax1.plot(x_axis, signal)
                     ax1.set_xlabel('Samples')
                     ax1.set_ylabel('Signal amplitude')
 
                     np_values = np.array(signal)
-                    if not options.plot_T:
-                        mean = np.mean(np_values)
-                        np_values = np_values - mean
-                        np_values = np_values * hann_window
-                    post_fft = np.fft.rfft(np_values, NFFT)
-                    # plt.subplot(2,1,2)
-                    # plt.plot(x_axis,np.real(post_fft[:512]))
-                    ax2.clear()
-                    ax2.set_xlabel('BINS')
-                    ax2.plot(x_axis[:50], np.fabs(np.real(post_fft[:50])))
+                    if not options.plot_FFT:
+                        if not options.plot_T:
+                            mean = np.mean(np_values)
+                            np_values = np_values - mean
+                            np_values = np_values * hann_window
+                        post_fft = np.fft.rfft(np_values, NFFT)
+                        ax2.clear()
+                        ax2.grid()
+                        ax2.set_xlabel('BINS')
+                        if not options.plot_FFT:
+                            ax2.plot(x_axis[:fft_bin_cutoff], np.fabs(np.real(post_fft[:fft_bin_cutoff])))
 
                     plt.show(block=False)
                     plt.pause(0.001)
@@ -160,8 +173,11 @@ def main():
     parser.add_option("-T", "--plot_T",
                        action="store_true",
                        dest="plot_T")
+    parser.add_option("-F", "--plot_FFT",
+                       action="store_true",
+                       dest="plot_FFT")
     (options, args) = parser.parse_args()
-    if options.plot_I is None and options.plot_Q is None and options.plot_T is None:
+    if options.plot_I is None and options.plot_Q is None and options.plot_T is None and options.plot_FFT is None:
         options.plot_I = True
 
     # Initialize the USB port to read from the OPS-24x module
@@ -192,13 +208,16 @@ def main():
 
     # Initialize and query Ops24x Module
     print("\nInitializing Ops24x Module")
-    send_OPS24x_cmd(serial_OPS24x, "\nSet Power: ", OPS24x_Power_Min)
+    send_OPS24x_cmd(serial_OPS24x, "\nSet Power: ", OPS24x_Power_Mid)
     send_OPS24x_cmd(serial_OPS24x, "\nSet no to Distance: ", OPS24x_Output_NoDistance)
+    send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x_Wait_1kms: ",OPS24x_Wait_200ms)
 
     if options.plot_I or options.plot_Q:
         send_OPS24x_cmd(serial_OPS24x, "\nSet yes Raw data: ", OPS24x_Output_Raw)
     elif options.plot_T:
         send_OPS24x_cmd(serial_OPS24x, "\nSet yes Time Domain data: ", OPS24x_Output_TimeSignal)
+    elif options.plot_FFT:
+        send_OPS24x_cmd(serial_OPS24x, "\nSet yes FFT data: ", OPS24x_Output_FFT)
 
     read_plot_loop(serial_OPS24x, options)
 
@@ -206,6 +225,8 @@ def main():
         send_OPS24x_cmd(serial_OPS24x, "\nSet no Raw data: ", OPS24x_Output_NoRaw)
     elif options.plot_T:
         send_OPS24x_cmd(serial_OPS24x, "\nSet No Time data: ", OPS24x_Output_NoTimeSignal)
+    elif options.plot_FFT:
+        send_OPS24x_cmd(serial_OPS24x, "\nSet No Time data: ", OPS24x_Output_NoFFT)
 
     serial_OPS24x.close()
     exit()
