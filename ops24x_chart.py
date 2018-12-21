@@ -116,6 +116,7 @@ def read_plot_loop(serial_port, options):
 
                     if signal is None:
                         print("Failed to get a signal input.")
+                        continue
 
                     ax1.clear()
                     ax1.grid()
@@ -132,7 +133,14 @@ def read_plot_loop(serial_port, options):
                             mean = np.mean(np_values)
                             np_values = np_values - mean
                             np_values = np_values * hann_window
-                        post_fft = np.fft.rfft(np_values, NFFT)
+
+                        if isinstance(np_values[0], (np.float)):
+                            post_fft = np.fft.rfft(np_values, NFFT)
+                        elif isinstance(np_values[0], (np.ndarray, np.generic)):
+                            complex_values = [complex(x[0], x[1]) for x in np_values]
+                            post_fft = np.fft.fft(complex_values, NFFT)
+                        else:
+                            post_fft = None
                         ax2.clear()
                         ax2.grid()
                         ax2.set_xlabel('BINS')
@@ -210,7 +218,7 @@ def main():
     print("\nInitializing Ops24x Module")
     send_OPS24x_cmd(serial_OPS24x, "\nSet Power: ", OPS24x_Power_Mid)
     send_OPS24x_cmd(serial_OPS24x, "\nSet no to Distance: ", OPS24x_Output_NoDistance)
-    send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x_Wait_1kms: ",OPS24x_Wait_200ms)
+    send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x_Wait_1kms: ",OPS24x_Wait_1kms)
 
     if options.plot_I or options.plot_Q:
         send_OPS24x_cmd(serial_OPS24x, "\nSet yes Raw data: ", OPS24x_Output_Raw)
