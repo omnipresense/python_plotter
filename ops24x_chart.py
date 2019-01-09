@@ -79,7 +79,7 @@ def send_OPS24x_cmd(serial_port, console_msg_prefix, ops24x_command):
 
 
 hann_window = np.hanning(sample_count)
-fft_bin_cutoff = 50
+fft_bin_cutoff = 256
 
 def read_plot_loop(serial_port, options):
     f, (ax1, ax2) = plt.subplots(2, 1)
@@ -87,6 +87,8 @@ def read_plot_loop(serial_port, options):
     # ax1 = plt.axes()
     x_axis = np.linspace(0, sample_count - 1, sample_count)
     plt.ion()
+    signal_I = None
+    signal_Q = None
     try:
         # main loop to the program
         serial_port.flushInput()
@@ -101,18 +103,25 @@ def read_plot_loop(serial_port, options):
                     pobj = json.loads(data_rx_str)
 
                     signal = None
-                    if options.plot_I:
+                    if options.plot_I or options.plot_IQ:
                         if pobj.get('I'):
-                            signal = pobj['I']
-                    elif options.plot_Q:
+                            signal_I = pobj['I']
+                            signal = signal_I
+                            np_values = np.array(signal_I)
+                    if options.plot_Q or options.plot_IQ:
                         if pobj.get('Q'):
-                            signal = pobj['Q']
-                    elif options.plot_T:
+                            signal_Q = pobj['Q']
+                            signal = signal_Q
+                            np_values = np.array(signal_Q)
+                    # if none of those, these are exclusive
+                    if options.plot_T:
                         if pobj.get('T'):
                             signal = pobj['T']
+                            np_values = np.array(signal)
                     elif options.plot_FFT:
                         if pobj.get('FFT'):
                             signal = pobj['FFT']
+                            np_values = np.array(signal)
 
                     if signal is None:
                         print("Failed to get a signal input.")
@@ -123,20 +132,28 @@ def read_plot_loop(serial_port, options):
                     if options.plot_FFT:
                         ax1.plot(x_axis[:fft_bin_cutoff], signal[:fft_bin_cutoff])
                     else:
-                        ax1.plot(x_axis, signal)
+                        if options.plot_I or options.plot_IQ:
+                            if signal_I is not None:
+                                ax1.plot(x_axis, signal_I)
+                        # observe this is NOT an elif in order to maybe plot both I and Q....
+                        if options.plot_Q or options.plot_IQ:
+                            if signal_Q is not None:
+                                ax1.plot(x_axis, signal_Q)
+                        if not (options.plot_I or options.plot_Q or options.plot_IQ):
+                            ax1.plot(x_axis, signal)
+
                     ax1.set_xlabel('Samples')
                     ax1.set_ylabel('Signal amplitude')
 
-                    np_values = np.array(signal)
                     if not options.plot_FFT:
-                        if not options.plot_T:
+                        if not options.plot_T:  # OT means we received the already-mean'ed Time Domain
                             mean = np.mean(np_values)
                             np_values = np_values - mean
                             np_values = np_values * hann_window
 
                         if isinstance(np_values[0], (np.float)):
                             post_fft = np.fft.rfft(np_values, NFFT)
-                        elif isinstance(np_values[0], (np.ndarray, np.generic)):
+                        elif isinstance(np_values[0], (np.ndarray, np.generic)):  # OT
                             complex_values = [complex(x[0], x[1]) for x in np_values]
                             post_fft = np.fft.fft(complex_values, NFFT)
                         else:
@@ -178,6 +195,9 @@ def main():
     parser.add_option("-Q", "--plot_Q",
                        action="store_true",
                        dest="plot_Q")
+    parser.add_option("-B", "--plot_both",
+                       action="store_true",
+                       dest="plot_IQ")
     parser.add_option("-T", "--plot_T",
                        action="store_true",
                        dest="plot_T")
@@ -190,7 +210,7 @@ def main():
 
     # Initialize the USB port to read from the OPS-24x module
     serial_OPS24x = serial.Serial(
-        baudrate=options.baudrate,
+        #baudrate=options.baudrate,
         parity=serial.PARITY_NONE,
         stopbits=serial.STOPBITS_ONE,
         bytesize=serial.EIGHTBITS,
@@ -216,9 +236,9 @@ def main():
 
     # Initialize and query Ops24x Module
     print("\nInitializing Ops24x Module")
-    send_OPS24x_cmd(serial_OPS24x, "\nSet Power: ", OPS24x_Power_Mid)
-    send_OPS24x_cmd(serial_OPS24x, "\nSet no to Distance: ", OPS24x_Output_NoDistance)
-    send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x_Wait_1kms: ",OPS24x_Wait_1kms)
+    send_OPS24x_cmd(serial_OPS24x, "\nSet Power: ", OPS24x_Power_Min)
+#    send_OPS24x_cmd(serial_OPS24x, "\nSet no to Distance: ", OPS24x_Output_NoDistance)
+    send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x_Wait_ms: ",OPS24x_Wait_1kms)
 
     if options.plot_I or options.plot_Q:
         send_OPS24x_cmd(serial_OPS24x, "\nSet yes Raw data: ", OPS24x_Output_Raw)
