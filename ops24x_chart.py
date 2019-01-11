@@ -11,7 +11,24 @@ import serial.tools.list_ports
 import json
 
 import matplotlib
-matplotlib.use('TkAgg')
+#matplotlib.use('TkAgg')
+# if the fact that the chart window pops up over everything is too irritating, there are a few approaches according to
+# https://stackoverflow.com/questions/45729092/make-interactive-matplotlib-window-not-pop-to-front-on-each-update-windows-7
+# 1: Easiest: don't use TkAgg backend. Use Qt5Agg.  It must be installed.  So, as admin: pip install PyQt5
+matplotlib.use("Qt5Agg")  # Can't find Qt5Agg? pip install it  OR use TkAgg
+# 2. the plt.pause invokes plt.show, which forces on-top-ness.
+# This mypause() avoids that show() call
+# def mypause(interval):
+#     backend = plt.rcParams['backend']
+#     if backend in matplotlib.rcsetup.interactive_bk:
+#         figManager = matplotlib._pylab_helpers.Gcf.get_active()
+#         if figManager is not None:
+#             canvas = figManager.canvas
+#             if canvas.figure.stale:
+#                 canvas.draw()
+#             canvas.start_event_loop(interval)
+#             return
+
 import matplotlib.pyplot as plt
 
 ####################################################
@@ -82,6 +99,15 @@ hann_window = np.hanning(sample_count)
 fft_bin_cutoff = 256
 
 def read_plot_loop(serial_port, options):
+    post_fft = None
+    values_I = None
+    values_Q = None
+    np_values = None
+    np_values_I = None
+    np_values_Q = None
+    np_values_T = None
+    np_values_FFT = None
+
     if options.plot_IQ_FFT:
         f, (plot1, plot2, plot3) = plt.subplots(3, 1)
     elif options.plot_FFT:
@@ -93,13 +119,6 @@ def read_plot_loop(serial_port, options):
     # plot1 = plt.axes()
     x_axis = np.linspace(0, sample_count - 1, sample_count)
     plt.ion()
-    signal_I = None
-    signal_Q = None
-    np_values = None
-    np_values_I = None
-    np_values_Q = None
-    np_values_T = None
-    np_values_FFT = None
     try:
         # main loop to the program
         serial_port.flushInput()
@@ -114,37 +133,36 @@ def read_plot_loop(serial_port, options):
                     pobj = json.loads(data_rx_str)
 
                     # read off the wire
-                    signal = None
+                    values = None
                     if options.plot_I or options.plot_IQ or options.plot_IQ_FFT:
                         if pobj.get('I'):
-                            signal_I = pobj['I']
-                            signal = signal_I
-                            np_values = np.array(signal_I)
+                            values_I = pobj['I']
+                            values = values_I
+                            np_values = np.array(values_I)
                             mean = np.mean(np_values)
                             np_values = np_values - mean
                             np_values_I = np_values * hann_window
                             np_values_I = np_values_I * (3.3/4096)
                     if options.plot_Q or options.plot_IQ or options.plot_IQ_FFT:
                         if pobj.get('Q'):
-                            signal_Q = pobj['Q']
-                            signal = signal_Q
-                            np_values = np.array(signal_Q)
+                            values_Q = pobj['Q']
+                            values = values_Q
+                            np_values = np.array(values_Q)
                             mean = np.mean(np_values)
                             np_values = np_values - mean
                             np_values_Q = np_values * hann_window
                             np_values_Q = np_values_Q * (3.3/4096)
-
                     if options.plot_T:  # it's an array of [i,j] pairs
                         if pobj.get('T'):
-                            signal = pobj['T']
-                            np_values_T = np.array(signal)
+                            values = pobj['T']
+                            np_values_T = np.array(values)
                     elif options.plot_FFT or options.plot_IQ_FFT:
                         if pobj.get('FFT'):
-                            signal = pobj['FFT']
-                            np_values_FFT = np.array(signal)
-                            print(signal[:5])
+                            values = pobj['FFT']
+                            np_values_FFT = np.array(values)
+                            #print(values[:5])
 
-                    if signal is None:
+                    if values is None:
                         print("Unexpected data received.")
                         #print(data_rx_str)
                         continue
@@ -162,13 +180,13 @@ def read_plot_loop(serial_port, options):
 
                     legend_arr = []
                     if options.plot_I or options.plot_IQ or options.plot_IQ_FFT:
-                        if signal_I is not None:
-                            plot1.plot(x_axis, signal_I)
+                        if values_I is not None:
+                            plot1.plot(x_axis, values_I)
                             legend_arr.append("I")
                     # observe this is NOT an elif in order to maybe plot both I and Q....
                     if options.plot_Q or options.plot_IQ or options.plot_IQ_FFT:
-                        if signal_Q is not None:
-                            plot1.plot(x_axis, signal_Q)
+                        if values_Q is not None:
+                            plot1.plot(x_axis, values_Q)
                             legend_arr.append("Q")
                     if options.plot_T:
                         plot1.plot(x_axis, np_values_T)
@@ -177,24 +195,31 @@ def read_plot_loop(serial_port, options):
                     plot1.set_ylabel('Signal amplitude')
                     plot1.legend(legend_arr)
 
-                    # do the FFT (unless options.plot_FFT which means 'just show the sensor's output'
+                    # do the FFT (unless options.plot_FFT which means 'just show the sensor's output', but they left already
                     if (options.plot_IQ or options.plot_IQ_FFT) and np_values_I is not None and np_values_Q is not None:
                         # mingle the I and Q and do the FFT
                         complex_values = np_values_I + 1j * np_values_Q
                         post_fft = np.fft.fft(complex_values, NFFT)
-                    elif np_values is not None and isinstance(np_values[0], np.float):  # handles I only or Q only (or anything else thats a list of floats)
-                        post_fft = np.fft.rfft(np_values, NFFT)
+                    if options.plot_I:
+                        if np_values_I is not None:
+                           post_fft = np.fft.rfft(np_values_I, NFFT)
+                    elif options.plot_Q:
+                        if np_values_Q is not None:
+                            post_fft = np.fft.rfft(np_values_Q, NFFT)
                     elif options.plot_T and isinstance(np_values[0], (np.ndarray, np.generic)):  # handles OT (or maybe if options.plot_IQ_FFT returns this style
-                        complex_values = [complex(x[0], x[1]) for x in np_values]
-                        post_fft = np.fft.fft(complex_values, NFFT)
+                        if np_values is not None:
+                            complex_values = [complex(x[0], x[1]) for x in np_values]
+                            post_fft = np.fft.fft(complex_values, NFFT)
                     else:
-                        post_fft = None
+                        if np_values is not None:
+                            post_fft = np.fft.rfft(np_values, NFFT)
 
                     plot2.clear()
                     plot2.grid()
                     plot2.set_xlabel('BINS')
                     plot2.set_ylabel('Magnitude')
-                    plot2.plot(x_axis[:fft_bin_cutoff], np.fabs(np.real(post_fft[:fft_bin_cutoff])))
+                    if post_fft is not None:
+                        plot2.plot(x_axis[:fft_bin_cutoff], np.fabs(np.real(post_fft[:fft_bin_cutoff])))
 
                     if options.plot_IQ_FFT and np_values_FFT is not None:
                         plot3.clear()
@@ -279,9 +304,9 @@ def main():
 
     # Initialize and query Ops24x Module
     print("\nInitializing Ops24x Module")
-    send_OPS24x_cmd(serial_OPS24x, "\nSet Power: ", OPS24x_Power_Min)
+#    send_OPS24x_cmd(serial_OPS24x, "\nSet Power: ", OPS24x_Power_Max)
 #    send_OPS24x_cmd(serial_OPS24x, "\nSet no to Distance: ", OPS24x_Output_NoDistance)
-    send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x_Wait_ms: ",OPS24x_Wait_1kms)
+    send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x_Wait_ms: ",OPS24x_Wait_500ms)
 
     if options.plot_I or options.plot_Q or options.plot_IQ or options.plot_IQ_FFT:
         send_OPS24x_cmd(serial_OPS24x, "\nSet yes Raw data: ", OPS24x_Output_Raw)
