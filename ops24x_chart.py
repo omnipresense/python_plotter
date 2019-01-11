@@ -219,7 +219,7 @@ def read_plot_loop(serial_port, options):
                     plot2.set_xlabel('BINS')
                     plot2.set_ylabel('Magnitude')
                     if post_fft is not None:
-                        plot2.plot(x_axis[:fft_bin_cutoff], np.fabs(np.real(post_fft[:fft_bin_cutoff])))
+                        plot2.plot(x_axis[:fft_bin_cutoff], np.abs(post_fft[:fft_bin_cutoff]))
 
                     if options.plot_IQ_FFT and np_values_FFT is not None:
                         plot3.clear()
