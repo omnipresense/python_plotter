@@ -187,8 +187,8 @@ class UI:
                                 #print(values[:5])
 
                         if values is None:
-                            print("Unexpected data received.")
-                            #print(data_rx_str)
+                            #print("Unexpected data received.")
+                            print(data_rx_str)
                             continue
 
                         plot1.clear()
@@ -233,10 +233,11 @@ class UI:
                         elif options.plot_Q:
                             if np_values_Q is not None:
                                 post_fft = np.fft.rfft(np_values_Q, NFFT)
-                        elif options.plot_T and isinstance(np_values[0], (np.ndarray, np.generic)):  # handles OT (or maybe if options.plot_IQ_FFT returns this style
-                            if np_values is not None:
-                                complex_values = [complex(x[0], x[1]) for x in np_values]
-                                post_fft = np.fft.fft(complex_values, NFFT)
+                        elif options.plot_T: # handles OT (or maybe if options.plot_IQ_FFT returns this style
+                            if np_values_T is not None:
+                                if isinstance(np_values_T[0], (np.ndarray, np.generic)):
+                                    complex_values = [complex(x[0], x[1]) for x in np_values_T]
+                                    post_fft = np.fft.fft(complex_values, NFFT)
                         else:
                             if np_values is not None:
                                 post_fft = np.fft.rfft(np_values, NFFT)
