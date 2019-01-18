@@ -10,6 +10,7 @@ from matplotlib.widgets import Button, TextBox
 from platform import system
 import serial.tools.list_ports
 import json
+import pdb
 
 import matplotlib
 #matplotlib.use('TkAgg')
@@ -43,7 +44,7 @@ import matplotlib.pyplot as plt
 # OPS24x module setting initialization constants
 Fs = 10000
 OPS24x_Sampling_Frequency = 'SX'  # 10Ksps
-sample_count = 512  # we
+sample_count = 512
 NFFT = sample_count * 2
 OPS24x_Sampling_Size512 = 'S<'  # 10Ksps
 OPS24x_Blanks_Send_Zeros = 'BZ'
@@ -97,7 +98,9 @@ def send_OPS24x_cmd(serial_port, console_msg_prefix, ops24x_command):
 
 
 hann_window = np.hanning(sample_count)
-fft_bin_cutoff = 256
+blackman_window = np.blackman(sample_count)
+fft_bin_low_cutoff = 0
+fft_bin_high_cutoff = 256
 
 class UI:
 
@@ -105,18 +108,25 @@ class UI:
 
     def read_plot_loop(self, serial_port, options):
         post_fft = None
+        post_fft_I = None
+        post_fft_Q = None
         values_I = None
         values_Q = None
+        values_T = None
         np_values = None
         np_values_I = None
         np_values_Q = None
         np_values_T = None
         np_values_FFT = None
+        complex_values = None
+        complex_values_I = None
+        complex_values_Q = None
+        complex_values_T = None
 
         self.serial_port = serial_port
 
         if options.plot_IQ_FFT:
-            f, (plot1, plot2, plot3) = plt.subplots(3, 1)
+            f, (plot1, plot2, plot3, plot4) = plt.subplots(4, 1)
         elif options.plot_FFT:
             f, (plot1) = plt.subplots(1, 1)
             plot1.set_title("fft magnitudes")
@@ -163,23 +173,25 @@ class UI:
                                 values_I = pobj['I']
                                 values = values_I
                                 np_values = np.array(values_I)
-                                mean = np.mean(np_values)
-                                np_values = np_values - mean
-                                np_values_I = np_values * hann_window
-                                np_values_I = np_values_I * (3.3/4096)
+                                np_values_I = np_values * 16 * (3.3/4096)
+                                mean_I = np.mean(np_values_I)
+                                np_values_I = np_values_I - mean_I
+                                np_values_I = np_values_I * blackman_window
                         if options.plot_Q or options.plot_IQ or options.plot_IQ_FFT:
                             if pobj.get('Q'):
                                 values_Q = pobj['Q']
                                 values = values_Q
                                 np_values = np.array(values_Q)
-                                mean = np.mean(np_values)
-                                np_values = np_values - mean
-                                np_values_Q = np_values * hann_window
-                                np_values_Q = np_values_Q * (3.3/4096)
+                                np_values_Q = np_values * 16 * (3.3/4096)
+                                mean_Q = np.mean(np_values_Q)
+                                np_values_Q = np_values_Q - mean_Q
+                                np_values_Q = np_values_Q * blackman_window
                         if options.plot_T:  # it's an array of [i,j] pairs
                             if pobj.get('T'):
-                                values = pobj['T']
-                                np_values_T = np.array(values)
+                                values_T = pobj['T']
+                                values = values_T
+                                np_values = np.array(values_T)
+                                np_values_T = np_values / 1000000
                         elif options.plot_FFT or options.plot_IQ_FFT:
                             if pobj.get('FFT'):
                                 values = pobj['FFT']
@@ -194,9 +206,9 @@ class UI:
                         plot1.clear()
                         plot1.grid()
                         # FFT is a special one-and-done
-                        if options.plot_FFT:
-                            plot1.plot(x_axis[:fft_bin_cutoff], np_values_FFT[:fft_bin_cutoff])
-                            plot1.set_xlabel('BINS')
+                        if options.plot_FFT and np_values_FFT is not None:
+                            plot1.plot(x_axis[fft_bin_low_cutoff:fft_bin_high_cutoff], np_values_FFT[fft_bin_low_cutoff:fft_bin_high_cutoff])
+                            plot1.set_xlabel('Bins')
                             plot1.set_ylabel('magnitude')
                             plot1.set_title("fft magnitudes")
                             plt.show(block=False)
@@ -205,13 +217,13 @@ class UI:
 
                         legend_arr = []
                         if options.plot_I or options.plot_IQ or options.plot_IQ_FFT:
-                            if values_I is not None:
-                                plot1.plot(x_axis, values_I)
+                            if np_values_I is not None:
+                                plot1.plot(x_axis, np_values_I)
                                 legend_arr.append("I")
                         # observe this is NOT an elif in order to maybe plot both I and Q....
                         if options.plot_Q or options.plot_IQ or options.plot_IQ_FFT:
-                            if values_Q is not None:
-                                plot1.plot(x_axis, values_Q)
+                            if np_values_Q is not None:
+                                plot1.plot(x_axis, np_values_Q)
                                 legend_arr.append("Q")
                         if options.plot_T:
                             plot1.plot(x_axis, np_values_T)
@@ -222,22 +234,56 @@ class UI:
                         plot1.set_ylabel('Signal amplitude')
                         plot1.legend(legend_arr, loc=1)
 
+                        if options.plot_IQ_FFT and np_values_I is not None:
+                            complex_values_I = np_values_I.astype(complex)
+                            post_fft_I = np.fft.fft(complex_values_I, NFFT)
+                            plot2.clear()
+                            plot2.grid()
+                            plot2.set_title("fft_I (local)", loc='left')
+                            plot2.set_xlabel('Bins')
+                            plot2.set_ylabel('Magnitude')
+                            if post_fft_I is not None:
+                                plot2.plot(x_axis[fft_bin_low_cutoff:fft_bin_high_cutoff], np.abs(post_fft_I[fft_bin_low_cutoff:fft_bin_high_cutoff]))
+
+                        if options.plot_IQ_FFT and np_values_Q is not None:
+                            complex_values_Q = 1j * np_values_Q.astype(complex)
+                            post_fft_Q = np.fft.fft(complex_values_Q, NFFT)
+                            plot3.clear()
+                            plot3.grid()
+                            plot3.set_title("fft_Q (local)", loc='left')
+                            plot3.set_xlabel('Bins')
+                            plot3.set_ylabel('Magnitude')
+                            if post_fft_Q is not None:
+                                plot3.plot(x_axis[fft_bin_low_cutoff:fft_bin_high_cutoff], np.abs(post_fft_Q[fft_bin_low_cutoff:fft_bin_high_cutoff]))
+
+                        if options.plot_IQ_FFT and np_values_FFT is not None:
+                            plot4.clear()
+                            plot4.grid()
+                            plot4.set_title("fft (sensor)", loc='left')
+                            plot4.set_xlabel('Bins')
+                            plot4.set_ylabel('Magnitude')
+                            plot4.plot(x_axis[fft_bin_low_cutoff:fft_bin_high_cutoff], np_values_FFT[fft_bin_low_cutoff:fft_bin_high_cutoff])
+                            plt.show(block=False)
+                            plt.pause(0.001)
+                            continue
+
                         # do the FFT (unless options.plot_FFT which means 'just show the sensor's output', but they left already
-                        if (options.plot_IQ or options.plot_IQ_FFT) and np_values_I is not None and np_values_Q is not None:
-                            # mingle the I and Q and do the FFT
-                            complex_values = np_values_I + 1j * np_values_Q
-                            post_fft = np.fft.fft(complex_values, NFFT)
-                        if options.plot_I:
+                        if options.plot_IQ:
+                            if np_values_I is not None and np_values_Q is not None:
+                                # mingle the I and Q and do the FFT
+                                complex_values = np_values_I + 1j * np_values_Q
+                                post_fft = np.fft.fft(complex_values, NFFT)
+                        elif options.plot_I:
                             if np_values_I is not None:
-                               post_fft = np.fft.rfft(np_values_I, NFFT)
+                                post_fft = np.fft.rfft(np_values_I, NFFT)
                         elif options.plot_Q:
                             if np_values_Q is not None:
                                 post_fft = np.fft.rfft(np_values_Q, NFFT)
                         elif options.plot_T: # handles OT (or maybe if options.plot_IQ_FFT returns this style
                             if np_values_T is not None:
                                 if isinstance(np_values_T[0], (np.ndarray, np.generic)):
-                                    complex_values = [complex(x[0], x[1]) for x in np_values_T]
-                                    post_fft = np.fft.fft(complex_values, NFFT)
+                                    complex_values_T = [complex(x[0], x[1]) for x in np_values_T]
+                                    post_fft = np.fft.fft(complex_values_T, NFFT)
                         else:
                             if np_values is not None:
                                 post_fft = np.fft.rfft(np_values, NFFT)
@@ -245,19 +291,18 @@ class UI:
                         plot2.clear()
                         plot2.grid()
                         plot2.set_title("fft (local)", loc='left')
-                        plot2.set_xlabel('BINS')
+                        plot2.set_xlabel('Bins')
                         plot2.set_ylabel('Magnitude')
                         if post_fft is not None:
-                            plot2.plot(x_axis[:fft_bin_cutoff], np.abs(post_fft[:fft_bin_cutoff]))
+                            plot2.plot(x_axis[fft_bin_low_cutoff:fft_bin_high_cutoff], np.abs(post_fft[fft_bin_low_cutoff:fft_bin_high_cutoff]))
 
                         if options.plot_IQ_FFT and np_values_FFT is not None:
                             plot3.clear()
                             plot3.grid()
                             plot3.set_title("fft (sensor)", loc='left')
-                            plot3.set_xlabel('BINS')
+                            plot3.set_xlabel('Bins')
                             plot3.set_ylabel('Magnitude')
-                            plot3.plot(x_axis[:fft_bin_cutoff], np_values_FFT[:fft_bin_cutoff])
-                            #print(np_values_FFT[:5])
+                            plot3.plot(x_axis[fft_bin_low_cutoff:fft_bin_high_cutoff], np_values_FFT[fft_bin_low_cutoff:fft_bin_high_cutoff])
 
                         plt.show(block=False)
                         plt.pause(0.001)
@@ -312,8 +357,8 @@ def main():
                        action="store_true",
                        dest="plot_IQ_FFT")
     (options, args) = parser.parse_args()
-    if options.plot_I is None and options.plot_Q is None and options.plot_T is None and options.plot_FFT is None:
-        options.plot_I = True
+    if options.plot_I is None and options.plot_Q is None and options.plot_T is None and options.plot_FFT is None and options.plot_IQ is None and options.plot_IQ_FFT is None:
+        options.plot_FFT = True
 
     # Initialize the USB port to read from the OPS-24x module
     serial_OPS24x = serial.Serial(
@@ -345,7 +390,7 @@ def main():
     print("\nInitializing Ops24x Module")
 #    send_OPS24x_cmd(serial_OPS24x, "\nSet Power: ", OPS24x_Power_Max)
 #    send_OPS24x_cmd(serial_OPS24x, "\nSet no to Distance: ", OPS24x_Output_NoDistance)
-    send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x_Wait_ms: ",OPS24x_Wait_500ms)
+    send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x_Wait_ms: ",OPS24x_Wait_1kms)
 
     if options.plot_I or options.plot_Q or options.plot_IQ or options.plot_IQ_FFT:
         send_OPS24x_cmd(serial_OPS24x, "\nSet yes Raw data: ", OPS24x_Output_Raw)
