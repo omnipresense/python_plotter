@@ -185,7 +185,7 @@ class UI:
                                 np_values_Q = np_values * 16 * (3.3/4096)
                                 mean_Q = np.mean(np_values_Q)
                                 np_values_Q = np_values_Q - mean_Q
-                                np_values_Q = np_values_Q * blackman_window
+                                np_values_Q = np_values_Q * blackman_window * -1
                         if options.plot_T:  # it's an array of [i,j] pairs
                             if pobj.get('T'):
                                 values_T = pobj['T']
