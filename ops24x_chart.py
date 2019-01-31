@@ -173,19 +173,21 @@ class UI:
                                 values_I = pobj['I']
                                 values = values_I
                                 np_values = np.array(values_I)
-                                np_values_I = np_values * 16 * (3.3/4096)
+                                np_values_I = np_values
+                                np_values_I = np_values_I * 16 * (3.3/4096)
                                 mean_I = np.mean(np_values_I)
                                 np_values_I = np_values_I - mean_I
-                                np_values_I = np_values_I * blackman_window
+                                np_values_I = np_values_I * hann_window
                         if options.plot_Q or options.plot_IQ or options.plot_IQ_FFT:
                             if pobj.get('Q'):
                                 values_Q = pobj['Q']
                                 values = values_Q
                                 np_values = np.array(values_Q)
-                                np_values_Q = np_values * 16 * (3.3/4096)
+                                np_values_Q = np_values * -1
+                                np_values_Q = np_values_Q * 16 * (3.3/4096)
                                 mean_Q = np.mean(np_values_Q)
                                 np_values_Q = np_values_Q - mean_Q
-                                np_values_Q = np_values_Q * blackman_window * -1
+                                np_values_Q = np_values_Q * hann_window
                         if options.plot_T:  # it's an array of [i,j] pairs
                             if pobj.get('T'):
                                 values_T = pobj['T']
