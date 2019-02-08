@@ -42,34 +42,42 @@ import matplotlib.pyplot as plt
 
 
 # OPS24x module setting initialization constants
-Fs = 10000
-OPS24x_Sampling_Frequency = 'SX'  # 10Ksps
+#Fs = 10000
 sample_count = 512
-NFFT = sample_count * 2
-OPS24x_Sampling_Size512 = 'S<'  # 10Ksps
+NFFT = 1024
+
+OPS24x_Sampling_Frequency = 'SX'     # 10Ksps
+OPS24x_Sampling_Size512 = 'S<'       # 512 FFT
+
 OPS24x_Blanks_Send_Zeros = 'BZ'
 OPS24x_Blanks_Send_Void = 'BV'
+
 OPS24x_Module_Information = '??'
-OPS24x_Power_Idle = 'PI'  # IDLE power
-OPS24x_Power_Min = 'PN'  # Min power
-OPS24x_Power_Mid = 'PD'  # Medium power
-OPS24x_Power_Max = 'PX'  # Max power
-OPS24x_Power_Active = 'PA'  #  power ACTIVE
-OPS24x_Power_Pulse = 'PP'  #  PULSE power
 
-OPS24x_Wait_1kms = 'WM'  # Wait one ms between readings
-OPS24x_Wait_500ms = 'WD'
-OPS24x_Wait_200ms = 'W2'
-OPS24x_Wait_100ms = 'WC'
+OPS24x_Power_Idle = 'PI'             # IDLE power
+OPS24x_Power_Min = 'PN'              # Min power
+OPS24x_Power_Mid = 'PD'              # Medium power
+OPS24x_Power_Max = 'PX'              # Max power
+OPS24x_Power_Active = 'PA'           # power ACTIVE
+OPS24x_Power_Pulse = 'PP'            # PULSE power
 
-OPS24x_Output_NoSpeed = 'Os'  #  don't send speed values
-OPS24x_Output_NoDistance = 'Od'
-OPS24x_Output_Raw = 'OR'  #  for raw data
-OPS24x_Output_NoRaw = 'Or'  #  for raw data
-OPS24x_Output_FFT = 'OF'  #  for fft data
-OPS24x_Output_NoFFT = 'Of'  #  for no fft data
-OPS24x_Output_TimeSignal = 'OT' # for timedomain signal
-OPS24x_Output_NoTimeSignal = 'Ot' # for timedomain signal
+OPS24x_Wait_1kms = 'WM'              # Wait 1000 ms between readings
+OPS24x_Wait_500ms = 'WD'             # Wait 500 ms between readings
+OPS24x_Wait_200ms = 'W2'             # Wait 200 ms between readings
+OPS24x_Wait_100ms = 'WC'             # Wait 100 ms between readings
+
+OPS24x_Output_Speed = 'OS'           # send speed value
+OPS24x_Output_No_Speed = 'Os'        # don't send speed value
+OPS24x_Output_Distance = 'OD'        # send distance values
+OPS24x_Output_No_Distance = 'Od'     # don't send distance values
+OPS24x_Output_Raw = 'OR'             # send raw data for distance
+OPS24x_Output_No_Raw = 'Or'          # don't send raw data for distance
+OPS24x_Output_FFT = 'OF'             # send fft data for distance
+OPS24x_Output_No_FFT = 'Of'          # don't send fft data for distance
+OPS24x_Output_TimeSignal = 'OT'      # send timedomain signal
+OPS24x_Output_No_TimeSignal = 'Ot'   # don't send timedomain signal
+OPS24x_Output_JSONy_data = 'OJ'      # send JSON formatted data
+OPS24x_Output_No_JSONy_data = 'Oj'   # don't send JSON formatted data
 
 
 # send_OPS24x_cmd: function for sending commands to the OPS-24x module
@@ -138,7 +146,7 @@ class UI:
 
         plt.figtext(0.50, 0.945, "TX Power")
         #ax_label = plt.axes([0.5, 0.93, 0.09, 0.05])
-        #lbl = TextBox(ax_label,"TX Power")
+        #lbl = TextBox(ax_label, "TX Power")
         ax_min = plt.axes([0.61, 0.93, 0.09, 0.05])
         ax_mid = plt.axes([0.72, 0.93, 0.09, 0.05])
         ax_max = plt.axes([0.83, 0.93, 0.09, 0.05])
@@ -177,7 +185,7 @@ class UI:
                                 np_values_I = np_values_I * 16 * (3.3/4096)
                                 mean_I = np.mean(np_values_I)
                                 np_values_I = np_values_I - mean_I
-                                np_values_I = np_values_I * hann_window
+                                np_values_I = np_values_I * hann_window * 2
                         if options.plot_Q or options.plot_IQ or options.plot_IQ_FFT:
                             if pobj.get('Q'):
                                 values_Q = pobj['Q']
@@ -187,7 +195,7 @@ class UI:
                                 np_values_Q = np_values_Q * 16 * (3.3/4096)
                                 mean_Q = np.mean(np_values_Q)
                                 np_values_Q = np_values_Q - mean_Q
-                                np_values_Q = np_values_Q * hann_window
+                                np_values_Q = np_values_Q * hann_window * 2
                         if options.plot_T:  # it's an array of [i,j] pairs
                             if pobj.get('T'):
                                 values_T = pobj['T']
@@ -390,33 +398,36 @@ def main():
 
     # Initialize and query Ops24x Module
     print("\nInitializing Ops24x Module")
-#    send_OPS24x_cmd(serial_OPS24x, "\nSet Power: ", OPS24x_Power_Max)
-#    send_OPS24x_cmd(serial_OPS24x, "\nSet no to Distance: ", OPS24x_Output_NoDistance)
-    send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x_Wait_ms: ",OPS24x_Wait_1kms)
+#    send_OPS24x_cmd(serial_OPS24x, "\nSet Max Power: ", OPS24x_Power_Max)
+#    send_OPS24x_cmd(serial_OPS24x, "\nSet no Distance: ", OPS24x_Output_No_Distance)
+    send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x_Wait_1kms: ", OPS24x_Wait_1kms)
+
+    send_OPS24x_cmd(serial_OPS24x, "\nSet yes JSONy data: ", OPS24x_Output_JSONy_data)
 
     if options.plot_I or options.plot_Q or options.plot_IQ or options.plot_IQ_FFT:
         send_OPS24x_cmd(serial_OPS24x, "\nSet yes Raw data: ", OPS24x_Output_Raw)
     else:
-        send_OPS24x_cmd(serial_OPS24x, "\nSet no Raw data: ", OPS24x_Output_NoRaw)
-
-    if options.plot_T:
-        send_OPS24x_cmd(serial_OPS24x, "\nSet yes Time Domain data: ", OPS24x_Output_TimeSignal)
-    else:
-        send_OPS24x_cmd(serial_OPS24x, "\nSet No Time data: ", OPS24x_Output_NoTimeSignal)
+        send_OPS24x_cmd(serial_OPS24x, "\nSet no Raw data: ", OPS24x_Output_No_Raw)
 
     if options.plot_FFT or options.plot_IQ_FFT:
         send_OPS24x_cmd(serial_OPS24x, "\nSet yes FFT data: ", OPS24x_Output_FFT)
     else:
-        send_OPS24x_cmd(serial_OPS24x, "\nSet No FFT data: ", OPS24x_Output_NoFFT)
+        send_OPS24x_cmd(serial_OPS24x, "\nSet no FFT data: ", OPS24x_Output_No_FFT)
+
+    if options.plot_T:
+        send_OPS24x_cmd(serial_OPS24x, "\nSet yes Time Domain data: ", OPS24x_Output_TimeSignal)
+    else:
+        send_OPS24x_cmd(serial_OPS24x, "\nSet no Time Domain data: ", OPS24x_Output_No_TimeSignal)
 
     # do the work
     ui = UI()
     ui.read_plot_loop(serial_OPS24x, options)
 
     # turn off all that we might have turned on
-    send_OPS24x_cmd(serial_OPS24x, "\nSet no Raw data: ", OPS24x_Output_NoRaw)
-    send_OPS24x_cmd(serial_OPS24x, "\nSet No Time data: ", OPS24x_Output_NoTimeSignal)
-    send_OPS24x_cmd(serial_OPS24x, "\nSet No FFT data: ", OPS24x_Output_NoFFT)
+    send_OPS24x_cmd(serial_OPS24x, "\nSet no JSONy data: ", OPS24x_Output_No_JSONy_data)
+    send_OPS24x_cmd(serial_OPS24x, "\nSet no Raw data: ", OPS24x_Output_No_Raw)
+    send_OPS24x_cmd(serial_OPS24x, "\nSet no FFT data: ", OPS24x_Output_No_FFT)
+    send_OPS24x_cmd(serial_OPS24x, "\nSet no Time Domain data: ", OPS24x_Output_No_TimeSignal)
 
     serial_OPS24x.close()
     exit()
