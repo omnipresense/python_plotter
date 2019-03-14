@@ -70,6 +70,8 @@ OPS24x_Output_Speed = 'OS'           # send speed value
 OPS24x_Output_No_Speed = 'Os'        # don't send speed value
 OPS24x_Output_Distance = 'OD'        # send distance values
 OPS24x_Output_No_Distance = 'Od'     # don't send distance values
+OPS24x_Output_Magnitude = 'OM'       # send magnitude values
+OPS24x_Output_No_Magnitude = 'Om'    # don't send magnitude values
 OPS24x_Output_Raw = 'OR'             # send raw data for distance
 OPS24x_Output_No_Raw = 'Or'          # don't send raw data for distance
 OPS24x_Output_FFT = 'OF'             # send fft data for distance
@@ -400,6 +402,8 @@ def main():
     print("\nInitializing Ops24x Module")
 #    send_OPS24x_cmd(serial_OPS24x, "\nSet Max Power: ", OPS24x_Power_Max)
 #    send_OPS24x_cmd(serial_OPS24x, "\nSet no Distance: ", OPS24x_Output_No_Distance)
+#    send_OPS24x_cmd(serial_OPS24x, "\nSet no Speed: ", OPS24x_Output_No_Speed)
+    send_OPS24x_cmd(serial_OPS24x, "\nSet yes Magnitude: ", OPS24x_Output_Magnitude)
     send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x_Wait_1kms: ", OPS24x_Wait_1kms)
 
     send_OPS24x_cmd(serial_OPS24x, "\nSet yes JSONy data: ", OPS24x_Output_JSONy_data)
@@ -424,6 +428,7 @@ def main():
     ui.read_plot_loop(serial_OPS24x, options)
 
     # turn off all that we might have turned on
+    send_OPS24x_cmd(serial_OPS24x, "\nSet no Magnitude: ", OPS24x_Output_No_Magnitude)
     send_OPS24x_cmd(serial_OPS24x, "\nSet no JSONy data: ", OPS24x_Output_No_JSONy_data)
     send_OPS24x_cmd(serial_OPS24x, "\nSet no Raw data: ", OPS24x_Output_No_Raw)
     send_OPS24x_cmd(serial_OPS24x, "\nSet no FFT data: ", OPS24x_Output_No_FFT)
