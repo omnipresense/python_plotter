@@ -230,12 +230,12 @@ class UI:
                         legend_arr = []
                         if options.plot_I or options.plot_IQ or options.plot_IQ_FFT:
                             if np_values_I is not None:
-                                plot1.plot(x_axis, np_values_I)
+                                plot1.plot(x_axis, values_I)
                                 legend_arr.append("I")
                         # observe this is NOT an elif in order to maybe plot both I and Q....
                         if options.plot_Q or options.plot_IQ or options.plot_IQ_FFT:
                             if np_values_Q is not None:
-                                plot1.plot(x_axis, np_values_Q)
+                                plot1.plot(x_axis, values_Q)
                                 legend_arr.append("Q")
                         if options.plot_T:
                             plot1.plot(x_axis, np_values_T)
