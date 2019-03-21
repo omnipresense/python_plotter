@@ -351,6 +351,9 @@ def main():
     parser.add_option("-b", "--baud", dest="baudrate",
                       default="115200",
                       help="baud rate on serial port")
+    parser.add_option("-W", "--wait_letter", dest="wait_letter",
+                      default=" ",
+                      help="wait value")
     parser.add_option("-I", "--plot_I",
                        action="store_true",
                        dest="plot_I")
@@ -405,7 +408,9 @@ def main():
 #    send_OPS24x_cmd(serial_OPS24x, "\nSet no Distance: ", OPS24x_Output_No_Distance)
 #    send_OPS24x_cmd(serial_OPS24x, "\nSet no Speed: ", OPS24x_Output_No_Speed)
     send_OPS24x_cmd(serial_OPS24x, "\nSet yes Magnitude: ", OPS24x_Output_Magnitude)
-    send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x_Wait_1kms: ", OPS24x_Wait_1kms)
+    if options.wait_letter != ' ':
+        print("Sending wait argument:",options.wait_letter)
+        send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x_Wait_1kms: ", "W"+options.wait_letter)
 
     send_OPS24x_cmd(serial_OPS24x, "\nSet yes JSONy data: ", OPS24x_Output_JSONy_data)
 
@@ -429,6 +434,7 @@ def main():
     ui.read_plot_loop(serial_OPS24x, options)
 
     # turn off all that we might have turned on
+    serial_OPS24x.write(0x03)  # send a break code
     send_OPS24x_cmd(serial_OPS24x, "\nSet no Magnitude: ", OPS24x_Output_No_Magnitude)
     send_OPS24x_cmd(serial_OPS24x, "\nSet no JSONy data: ", OPS24x_Output_No_JSONy_data)
     send_OPS24x_cmd(serial_OPS24x, "\nSet no Raw data: ", OPS24x_Output_No_Raw)
