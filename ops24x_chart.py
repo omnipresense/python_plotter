@@ -210,6 +210,13 @@ class UI:
                                 values = pobj['FFT']
                                 np_values_FFT = np.array(values)
                                 #print(values[:5])
+                        elif options.show_ranges:
+                            if pobj.get('Range_Data'):
+                                values = pobj['Range_Data']
+                                ranges = values['Ranges']
+                                print("next Range_Data.  Range (in", values['unit'], ") @ magnitude")
+                                for idx, r in enumerate(ranges):
+                                    print("r[", idx, "]=", r['d'], "@", r['mag'])
 
                         if values is None:
                             #print("Unexpected data received.")
@@ -372,6 +379,13 @@ def main():
     parser.add_option("-3", "--plot_IQ_FFT",
                        action="store_true",
                        dest="plot_IQ_FFT")
+    parser.add_option("-r", "--ranges_noparse",
+                       action="store_false",
+                       dest="show_ranges")
+    parser.add_option("-R", "--ranges_parse",
+                       action="store_true",
+                       dest="show_ranges",
+                       default=True)
     (options, args) = parser.parse_args()
     if options.plot_I is None and options.plot_Q is None and options.plot_T is None and options.plot_FFT is None and options.plot_IQ is None and options.plot_IQ_FFT is None:
         options.plot_FFT = True
