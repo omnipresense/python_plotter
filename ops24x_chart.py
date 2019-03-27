@@ -355,6 +355,7 @@ class UI:
 
 
 def main():
+    global fft_bin_low_cutoff
     usage = "usage: %prog [options] arg"
     parser = OptionParser(usage)
     parser.add_option("-p", "--port", dest="port_name",
@@ -365,6 +366,12 @@ def main():
     parser.add_option("-W", "--wait_letter", dest="wait_letter",
                       default=" ",
                       help="wait value")
+    parser.add_option("-P", "--power_letter", dest="power_letter",
+                      default=" ",
+                      help="power value")
+    parser.add_option("-c", "--low_cutoff", dest="low_cutoff",
+                      default=" ",
+                      help="low_cutoff")
     parser.add_option("-I", "--plot_I",
                        action="store_true",
                        dest="plot_I")
@@ -425,18 +432,23 @@ def main():
         serial_OPS24x.port = options.port_name
 
     serial_OPS24x.open()
-    serial_OPS24x.flushInput()
+    serial_OPS24x.write(0x03)  # send a break code so that our commands might get through
     serial_OPS24x.flushOutput()
+    serial_OPS24x.flushInput()
 
     # Initialize and query Ops24x Module
     print("\nInitializing Ops24x Module")
-#    send_OPS24x_cmd(serial_OPS24x, "\nSet Max Power: ", OPS24x_Power_Max)
-#    send_OPS24x_cmd(serial_OPS24x, "\nSet no Distance: ", OPS24x_Output_No_Distance)
-#    send_OPS24x_cmd(serial_OPS24x, "\nSet no Speed: ", OPS24x_Output_No_Speed)
     send_OPS24x_cmd(serial_OPS24x, "\nSet yes Magnitude: ", OPS24x_Output_Magnitude)
     if options.wait_letter != ' ':
         print("Sending wait argument:",options.wait_letter)
-        send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x_Wait_1kms: ", "W"+options.wait_letter)
+        send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x Wait ?: ", "W"+options.wait_letter)
+    if options.power_letter != ' ':
+        print("Sending power argument:",options.power_letter)
+        send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x Power: ", "P"+options.power_letter)
+
+    if options.low_cutoff != ' ':
+        print("Low cutoff:",options.low_cutoff)
+        fft_bin_low_cutoff = int(options.low_cutoff)
 
     send_OPS24x_cmd(serial_OPS24x, "\nSet yes JSONy data: ", OPS24x_Output_JSONy_data)
 
