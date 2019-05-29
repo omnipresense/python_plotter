@@ -43,11 +43,11 @@ import matplotlib.pyplot as plt
 
 # OPS24x module setting initialization constants
 #Fs = 10000
-sample_count = 512
 NFFT = 1024
 
 OPS24x_Sampling_Frequency = 'SX'     # 10Ksps
 OPS24x_Sampling_Size512 = 'S<'       # 512 FFT
+OPS24x_Sampling_Size1024 = 'S>'       # 512 FFT
 
 OPS24x_Blanks_Send_Zeros = 'BZ'
 OPS24x_Blanks_Send_Void = 'BV'
@@ -107,8 +107,6 @@ def send_OPS24x_cmd(serial_port, console_msg_prefix, ops24x_command):
         print("Write timeout sending command:",ops24x_command)
 
 
-hann_window = np.hanning(sample_count)
-blackman_window = np.blackman(sample_count)
 fft_bin_low_cutoff = 0
 fft_bin_high_cutoff = 256
 
@@ -180,46 +178,51 @@ class UI:
 
                         # read off the wire
                         values = None
-                        if options.plot_I or options.plot_IQ or options.plot_IQ_only or options.plot_IQ_FFT:
-                            if pobj.get('I'):
-                                values_I = pobj['I']
-                                values = values_I
-                                np_values = np.array(values_I)
-                                np_values_I = np_values
-                                #pdb.set_trace()
-                                mean_I = np.mean(np_values_I)
-                                np_values_I = np_values_I - mean_I
-                                np_values_I = np_values_I * -1
-                                np_values_I = np_values_I * 16 * (3.3/4096)
-                                np_values_I = np_values_I * hann_window * 2
-                        if options.plot_Q or options.plot_IQ or options.plot_IQ_only or options.plot_IQ_FFT:
-                            if pobj.get('Q'):
-                                values_Q = pobj['Q']
-                                values = values_Q
-                                np_values = np.array(values_Q)
-                                np_values_Q = np_values
-                                mean_Q = np.mean(np_values_Q)
-                                np_values_Q = np_values_Q - mean_Q
-                                np_values_Q = np_values_Q * 16 * (3.3/4096)
-                                np_values_Q = np_values_Q * hann_window * 2
-                        if options.plot_T:  # it's an array of [i,j] pairs
-                            if pobj.get('T'):
-                                values_T = pobj['T']
-                                values = values_T
-                                np_values = np.array(values_T)
-                                np_values_T = np_values / 1000000
-                        elif options.plot_FFT or options.plot_IQ_FFT:
-                            if pobj.get('FFT'):
-                                values = pobj['FFT']
-                                np_values_FFT = np.array(values)
-                                #print(values[:5])
-                        elif options.show_ranges:
-                            if pobj.get('Range_Data'):
-                                values = pobj['Range_Data']
-                                ranges = values['Ranges']
-                                print("next Range_Data.  Range (in", values['unit'], ") @ magnitude")
-                                for idx, r in enumerate(ranges):
-                                    print("r[", idx, "]=", r['d'], "@", r['mag'])
+                        try:
+                            if options.plot_I or options.plot_IQ or options.plot_IQ_only or options.plot_IQ_FFT:
+                                if pobj.get('I'):
+                                    values_I = pobj['I']
+                                    values = values_I
+                                    np_values = np.array(values_I)
+                                    np_values_I = np_values
+                                    #pdb.set_trace()
+                                    mean_I = np.mean(np_values_I)
+                                    np_values_I = np_values_I - mean_I
+                                    np_values_I = np_values_I * -1
+                                    np_values_I = np_values_I * 16 * (3.3/4096)
+                                    np_values_I = np_values_I * hann_window * 2
+                            if options.plot_Q or options.plot_IQ or options.plot_IQ_only or options.plot_IQ_FFT:
+                                if pobj.get('Q'):
+                                    values_Q = pobj['Q']
+                                    values = values_Q
+                                    np_values = np.array(values_Q)
+                                    np_values_Q = np_values
+                                    mean_Q = np.mean(np_values_Q)
+                                    np_values_Q = np_values_Q - mean_Q
+                                    np_values_Q = np_values_Q * 16 * (3.3/4096)
+                                    np_values_Q = np_values_Q * hann_window * 2
+                            if options.plot_T:  # it's an array of [i,j] pairs
+                                if pobj.get('T'):
+                                    values_T = pobj['T']
+                                    values = values_T
+                                    np_values = np.array(values_T)
+                                    np_values_T = np_values / 1000000
+                            elif options.plot_FFT or options.plot_IQ_FFT:
+                                if pobj.get('FFT'):
+                                    values = pobj['FFT']
+                                    np_values_FFT = np.array(values)
+                                    #print(values[:5])
+                            elif options.show_ranges:
+                                if pobj.get('Range_Data'):
+                                    values = pobj['Range_Data']
+                                    ranges = values['Ranges']
+                                    print("next Range_Data.  Range (in", values['unit'], ") @ magnitude")
+                                    for idx, r in enumerate(ranges):
+                                        print("r[", idx, "]=", r['d'], "@", r['mag'])
+                        except (ValueError, AttributeError) as err:
+                            print("error in values/computation. toss and continue. details: {0}".format(err))
+                            values = None
+                            continue
 
                         if values is None:
                             #print("Unexpected data received.")
@@ -400,6 +403,15 @@ def main():
                        action="store_true",
                        dest="show_ranges",
                        default=True)
+    parser.add_option("--CW",
+                      action="store_false",
+                      dest="is_fmcw_mode",
+                      default=False)
+    parser.add_option("--FMCW",
+                      action="store_true",
+                      dest="is_fmcw_mode",
+                      default=True)
+
     (options, args) = parser.parse_args()
     if options.plot_I is None and options.plot_Q is None \
             and options.plot_T is None \
@@ -408,6 +420,17 @@ def main():
             and options.plot_IQ_only is None \
             and options.plot_IQ_FFT is None:
         options.plot_FFT = True
+
+    global sample_count
+    if options.is_fmcw_mode:
+        sample_count = 512
+    else:
+        sample_count = 1024  # or 512 if preferred
+
+    global hann_window
+    global blackman_window
+    hann_window = np.hanning(sample_count)
+    blackman_window = np.blackman(sample_count)
 
     # Initialize the USB port to read from the OPS-24x module
     serial_OPS24x = serial.Serial(
@@ -432,7 +455,7 @@ def main():
         serial_OPS24x.port = options.port_name
 
     serial_OPS24x.open()
-    serial_OPS24x.write(0x03)  # send a break code so that our commands might get through
+    #serial_OPS24x.write(0x03)  # send a break code so that our commands might get through
     serial_OPS24x.flushOutput()
     serial_OPS24x.flushInput()
 
@@ -445,6 +468,13 @@ def main():
     if options.power_letter != ' ':
         print("Sending power argument:",options.power_letter)
         send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x Power: ", "P"+options.power_letter)
+    if options.is_fmcw_mode is False:
+        print("Sending CW sampling rate and size:",options.power_letter)
+        send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x Frequency: ", OPS24x_Sampling_Frequency)
+        if sample_count == 512:
+            send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x Size: ", OPS24x_Sampling_Size512)
+        else:
+            send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x Size: ", OPS24x_Sampling_Size1024)
 
     if options.low_cutoff != ' ':
         print("Low cutoff:",options.low_cutoff)
