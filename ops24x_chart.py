@@ -52,7 +52,7 @@ OPS24x_Sampling_Size1024 = 'S>'       # 512 FFT
 OPS24x_Blanks_Send_Zeros = 'BZ'
 OPS24x_Blanks_Send_Void = 'BV'
 
-OPS24x_Module_Information = '??'
+OPS24x_Query_Product = '?P'
 
 OPS24x_Power_Idle = 'PI'             # IDLE power
 OPS24x_Power_Min = 'PN'              # Min power
@@ -84,14 +84,15 @@ OPS24x_Output_No_JSONy_data = 'Oj'   # don't send JSON formatted data
 
 # send_OPS24x_cmd: function for sending commands to the OPS-24x module
 # console_msg_prefix is used only for printing out to console.
-def send_OPS24x_cmd(serial_port, console_msg_prefix, ops24x_command):
+def send_OPS24x_cmd(serial_port, console_msg_prefix, ops24x_command, match_criteria = None):
     data_for_send_str = ops24x_command + '\n'
     data_for_send_bytes = str.encode(data_for_send_str)
     print(console_msg_prefix, ops24x_command)
     try:
         serial_port.write(data_for_send_bytes)
         # Initialize message verify checking
-        ser_message_start = '{'
+        if match_criteria is None:
+            match_criteria = '{'
         ser_write_verify = False
         # Print out module response to command string
         while not ser_write_verify:
@@ -99,16 +100,18 @@ def send_OPS24x_cmd(serial_port, console_msg_prefix, ops24x_command):
             data_rx_length = len(data_rx_bytes)
             if data_rx_length != 0:
                 data_rx_str = str(data_rx_bytes)
-                if data_rx_str.find(ser_message_start):
+                if data_rx_str.find(match_criteria):
                     print(data_rx_str)
                     ser_write_verify = True
-        return ser_write_verify
+        return data_rx_str
     except serial.serialutil.SerialTimeoutException:
         print("Write timeout sending command:",ops24x_command)
 
-
 fft_bin_low_cutoff = 0
 fft_bin_high_cutoff = 256
+graph_height = 200
+
+
 
 class UI:
 
@@ -130,8 +133,18 @@ class UI:
         complex_values_I = None
         complex_values_Q = None
         complex_values_T = None
+        global graph_height
+        global plot1
+        global plot2
+        global plot3
+        global plot4
+        global ax_min
+        global ax_max
+        global ax_mid
+        global ax_height
 
-        self.serial_port = serial_port
+        self.serial_port = serial_port     
+
 
         if options.plot_IQ_FFT:
             f, (plot1, plot2, plot3, plot4) = plt.subplots(4, 1)
@@ -149,15 +162,30 @@ class UI:
         plt.figtext(0.50, 0.945, "TX Power")
         #ax_label = plt.axes([0.5, 0.93, 0.09, 0.05])
         #lbl = TextBox(ax_label, "TX Power")
-        ax_min = plt.axes([0.61, 0.93, 0.09, 0.05])
-        ax_mid = plt.axes([0.72, 0.93, 0.09, 0.05])
-        ax_max = plt.axes([0.83, 0.93, 0.09, 0.05])
+        ax_min = plt.axes([0.15, 0.8, 0.2, 0.1])
+        ax_mid = plt.axes([0.4, 0.8, 0.2, 0.1])
+        ax_max = plt.axes([0.65, 0.8, 0.2, 0.1])
+        ax_quit = plt.axes([0.9, 0.01, 0.09, 0.05])
+        ax_height = plt.axes([.1,.925,.075,.05])
+        ax_setting = plt.axes([.3,.925,.1,.05])
         b_min = Button(ax_min, 'Min')
         b_min.on_clicked(self.power_min)
         b_mid = Button(ax_mid, 'Mid')
         b_mid.on_clicked(self.power_mid)
         b_max = Button(ax_max, 'Max')
         b_max.on_clicked(self.power_max)
+        b_quit = Button (ax_quit, 'Quit')
+        b_quit.on_clicked(self.do_quit)
+        b_setting = Button(ax_setting, 'Settings')
+        b_setting.on_clicked(self.open_settings)
+        txt_height = TextBox(ax_height, 'Height ', initial = '200')
+        txt_height.on_submit(self.change_height)
+
+        ax_min.set_visible(False)
+        ax_mid.set_visible(False)
+        ax_max.set_visible(False)
+        ax_height.set_visible(False)
+
         plt.subplots_adjust(top=0.9)
 
         x_axis = np.linspace(0, sample_count - 1, sample_count)
@@ -165,65 +193,64 @@ class UI:
 
         try:
             # main loop to the program
+
             serial_port.flushInput()
             serial_port.flushOutput()
             while serial_port.is_open:
+                # fm.activateWindow()
+                # fm.raise_()
                 data_rx_bytes = serial_port.readline()
                 data_rx_length = len(data_rx_bytes)
                 if data_rx_length != 0:
                     try:
                         data_rx_str = str.rstrip(str(data_rx_bytes.decode('utf-8', 'strict')))
                         #print(data_rx_str)
+
                         pobj = json.loads(data_rx_str)
 
                         # read off the wire
                         values = None
-                        try:
-                            if options.plot_I or options.plot_IQ or options.plot_IQ_only or options.plot_IQ_FFT:
-                                if pobj.get('I'):
-                                    values_I = pobj['I']
-                                    values = values_I
-                                    np_values = np.array(values_I)
-                                    np_values_I = np_values
-                                    #pdb.set_trace()
-                                    mean_I = np.mean(np_values_I)
-                                    np_values_I = np_values_I - mean_I
-                                    np_values_I = np_values_I * -1
-                                    np_values_I = np_values_I * 16 * (3.3/4096)
-                                    np_values_I = np_values_I * hann_window * 2
-                            if options.plot_Q or options.plot_IQ or options.plot_IQ_only or options.plot_IQ_FFT:
-                                if pobj.get('Q'):
-                                    values_Q = pobj['Q']
-                                    values = values_Q
-                                    np_values = np.array(values_Q)
-                                    np_values_Q = np_values
-                                    mean_Q = np.mean(np_values_Q)
-                                    np_values_Q = np_values_Q - mean_Q
-                                    np_values_Q = np_values_Q * 16 * (3.3/4096)
-                                    np_values_Q = np_values_Q * hann_window * 2
-                            if options.plot_T:  # it's an array of [i,j] pairs
-                                if pobj.get('T'):
-                                    values_T = pobj['T']
-                                    values = values_T
-                                    np_values = np.array(values_T)
-                                    np_values_T = np_values / 1000000
-                            elif options.plot_FFT or options.plot_IQ_FFT:
-                                if pobj.get('FFT'):
-                                    values = pobj['FFT']
-                                    np_values_FFT = np.array(values)
-                                    #print(values[:5])
-                            elif options.show_ranges:
-                                if pobj.get('Range_Data'):
-                                    values = pobj['Range_Data']
-                                    ranges = values['Ranges']
-                                    print("next Range_Data.  Range (in", values['unit'], ") @ magnitude")
-                                    for idx, r in enumerate(ranges):
-                                        print("r[", idx, "]=", r['d'], "@", r['mag'])
-                        except (ValueError, AttributeError) as err:
-                            print("error in values/computation. toss and continue. details: {0}".format(err))
-                            values = None
-                            continue
-
+                        if options.plot_I or options.plot_IQ or options.plot_IQ_only or options.plot_IQ_FFT:
+                            if pobj.get('I'):
+                                values_I = pobj['I']
+                                values = values_I
+                                np_values = np.array(values_I)
+                                np_values_I = np_values
+                                 #pdb.set_trace()
+                                mean_I = np.mean(np_values_I)
+                                np_values_I = np_values_I - mean_I
+                                np_values_I = np_values_I * -1
+                                np_values_I = np_values_I * 16 * (3.3/4096)
+                                np_values_I = np_values_I * hann_window * 2
+                        if options.plot_Q or options.plot_IQ or options.plot_IQ_only or options.plot_IQ_FFT:
+                            if pobj.get('Q'):
+                                values_Q = pobj['Q']
+                                values = values_Q
+                                np_values = np.array(values_Q)
+                                np_values_Q = np_values
+                                mean_Q = np.mean(np_values_Q)
+                                np_values_Q = np_values_Q - mean_Q
+                                np_values_Q = np_values_Q * 16 * (3.3/4096)
+                                np_values_Q = np_values_Q * hann_window * 2
+                        if options.plot_T:  # it's an array of [i,j] pairs
+                            if pobj.get('T'):
+                                values_T = pobj['T']
+                                values = values_T
+                                np_values = np.array(values_T)
+                                np_values_T = np_values / 1000000
+                        elif options.plot_FFT or options.plot_IQ_FFT:
+                            if pobj.get('FFT'):
+                                values = pobj['FFT']
+                                np_values_FFT = np.array(values)
+                                #print(values[:5])
+                        elif options.show_ranges:
+                            if pobj.get('Range_Data'):
+                                values = pobj['Range_Data']
+                                ranges = values['Ranges']
+                                print("next Range_Data.  Range (in", values['unit'], ") @ magnitude")
+                                for idx, r in enumerate(ranges):
+                                    print("r[", idx, "]=", r['d'], "@", r['mag'])
+                    
                         if values is None:
                             #print("Unexpected data received.")
                             print(data_rx_str)
@@ -231,14 +258,19 @@ class UI:
 
                         plot1.clear()
                         plot1.grid()
+
                         # FFT is a special one-and-done
                         if options.plot_FFT and np_values_FFT is not None:
                             plot1.plot(x_axis[fft_bin_low_cutoff:fft_bin_high_cutoff], np_values_FFT[fft_bin_low_cutoff:fft_bin_high_cutoff])
                             plot1.set_xlabel('Bins')
                             plot1.set_ylabel('magnitude')
                             plot1.set_title("fft magnitudes")
+                            plot1.set_ylim(0,graph_height)
+                            plot1.set_xlim(0,256)
                             plt.show(block=False)
                             plt.pause(0.001)
+                            # matplotlib._pylab_helpers.Gcf.get_active().canvas.draw_idle()
+                            # matplotlib._pylab_helpers.Gcf.get_active().canvas.start_event_loop(.001)
                             continue
 
                         legend_arr = []
@@ -258,6 +290,8 @@ class UI:
                         plot1.set_title("raw signal", loc='left')
                         plot1.set_xlabel('Samples')
                         plot1.set_ylabel('Signal amplitude')
+                        plot1.set_ylim(0,graph_height)
+                        plot1.set_xlim(0,256)    
                         plot1.legend(legend_arr, loc=1)
                         
                         if options.plot_IQ_FFT and np_values_I is not None:
@@ -268,6 +302,8 @@ class UI:
                             plot2.set_title("fft_I (local)", loc='left')
                             plot2.set_xlabel('Bins')
                             plot2.set_ylabel('Magnitude')
+                            plot2.set_ylim(0,graph_height)
+                            plot2.set_xlim(0,256)
                             if post_fft_I is not None:
                                 plot2.plot(x_axis[fft_bin_low_cutoff:fft_bin_high_cutoff], np.abs(post_fft_I[fft_bin_low_cutoff:fft_bin_high_cutoff]))
 
@@ -279,6 +315,8 @@ class UI:
                             plot3.set_title("fft_Q (local)", loc='left')
                             plot3.set_xlabel('Bins')
                             plot3.set_ylabel('Magnitude')
+                            plot3.set_ylim(0,graph_height)
+                            plot3.set_xlim(0,256)
                             if post_fft_Q is not None:
                                 plot3.plot(x_axis[fft_bin_low_cutoff:fft_bin_high_cutoff], np.abs(post_fft_Q[fft_bin_low_cutoff:fft_bin_high_cutoff]))
 
@@ -289,6 +327,8 @@ class UI:
                             plot4.set_xlabel('Bins')
                             plot4.set_ylabel('Magnitude')
                             plot4.plot(x_axis[fft_bin_low_cutoff:fft_bin_high_cutoff], np_values_FFT[fft_bin_low_cutoff:fft_bin_high_cutoff])
+                            plot4.set_ylim(0,graph_height)
+                            plot4.set_xlim(0,256)
                             plt.show(block=False)
                             plt.pause(0.001)
                             continue
@@ -320,6 +360,8 @@ class UI:
                             plot2.set_title("fft (local)", loc='left')
                             plot2.set_xlabel('Bins')
                             plot2.set_ylabel('Magnitude')
+                            plot2.set_ylim(0,graph_height)
+                            plot2.set_xlim(0,256)
                             if post_fft is not None:
                                 plot2.plot(x_axis[fft_bin_low_cutoff:fft_bin_high_cutoff], np.abs(post_fft[fft_bin_low_cutoff:fft_bin_high_cutoff]))
 
@@ -329,6 +371,8 @@ class UI:
                                 plot3.set_title("fft (sensor)", loc='left')
                                 plot3.set_xlabel('Bins')
                                 plot3.set_ylabel('Magnitude')
+                                plot3.set_ylim(0,graph_height)
+                                plot3.set_xlim(0,256)
                                 plot3.plot(x_axis[fft_bin_low_cutoff:fft_bin_high_cutoff], np_values_FFT[fft_bin_low_cutoff:fft_bin_high_cutoff])
 
                         plt.show(block=False)
@@ -340,9 +384,12 @@ class UI:
                         print("ERROR: Prior line failed to parse. Continuing.")
                         print(data_rx_str)
                         print("ERROR-end: Resuming.")
+                    except (ValueError, AttributeError) as err:
+                        print("error in values/computation. toss and continue. details: {0}".format(err))
+                        values = None
                     # except:  # catch *all* exceptions
                     #     e = sys.exc_info()[0]
-                    #     print(e)
+                    #     print(e)                  
 
         except KeyboardInterrupt:
             print("Keyboard interrupt received. Exiting.")
@@ -356,6 +403,24 @@ class UI:
     def power_min(self, event):
         send_OPS24x_cmd(self.serial_port, "\nSet Power: ", OPS24x_Power_Min)
 
+    def do_quit(self, event):
+        quit(self.serial_port)
+
+    def change_height(self, text):
+        print('Changing Graph Height')
+        global graph_height 
+        graph_height = int(text)
+
+    def open_settings(self, event):
+        print("opening settings")
+        plot1.set_visible(not plot1.get_visible())
+        plot2.set_visible(not plot2.get_visible())
+        plot3.set_visible(not plot3.get_visible())
+        plot4.set_visible(not plot4.get_visible())
+        ax_min.set_visible(not ax_min.get_visible())
+        ax_mid.set_visible(not ax_mid.get_visible())
+        ax_max.set_visible(not ax_max.get_visible())
+        ax_height.set_visible(not ax_height.get_visible())
 
 def main():
     global fft_bin_low_cutoff
@@ -403,14 +468,6 @@ def main():
                        action="store_true",
                        dest="show_ranges",
                        default=True)
-    parser.add_option("--CW",
-                      action="store_false",
-                      dest="is_fmcw_mode",
-                      default=False)
-    parser.add_option("--FMCW",
-                      action="store_true",
-                      dest="is_fmcw_mode",
-                      default=True)
 
     (options, args) = parser.parse_args()
     if options.plot_I is None and options.plot_Q is None \
@@ -421,16 +478,9 @@ def main():
             and options.plot_IQ_FFT is None:
         options.plot_FFT = True
 
+    global is_doppler
     global sample_count
-    if options.is_fmcw_mode:
-        sample_count = 512
-    else:
-        sample_count = 1024  # or 512 if preferred
 
-    global hann_window
-    global blackman_window
-    hann_window = np.hanning(sample_count)
-    blackman_window = np.blackman(sample_count)
 
     # Initialize the USB port to read from the OPS-24x module
     serial_OPS24x = serial.Serial(
@@ -460,21 +510,34 @@ def main():
     serial_OPS24x.flushInput()
 
     # Initialize and query Ops24x Module
+
     print("\nInitializing Ops24x Module")
+    rtn_val = send_OPS24x_cmd(serial_OPS24x, "\nQuery for Product: ", OPS24x_Query_Product, "Product")
+    if rtn_val.find("Doppler") >= 0:
+        is_doppler = True
+    else:
+        is_doppler = False
+
     send_OPS24x_cmd(serial_OPS24x, "\nSet yes Magnitude: ", OPS24x_Output_Magnitude)
+
     if options.wait_letter != ' ':
         print("Sending wait argument:",options.wait_letter)
         send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x Wait ?: ", "W"+options.wait_letter)
     if options.power_letter != ' ':
         print("Sending power argument:",options.power_letter)
         send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x Power: ", "P"+options.power_letter)
-    if options.is_fmcw_mode is False:
+    
+    sample_count = 512
+    if is_doppler:
         print("Sending CW sampling rate and size:",options.power_letter)
         send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x Frequency: ", OPS24x_Sampling_Frequency)
-        if sample_count == 512:
-            send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x Size: ", OPS24x_Sampling_Size512)
-        else:
-            send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x Size: ", OPS24x_Sampling_Size1024)
+        sample_count = 1024
+        send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x Size: ", OPS24x_Sampling_Size1024)
+    global hann_window
+    global blackman_window
+    hann_window = np.hanning(sample_count)
+    blackman_window = np.blackman(sample_count)
+
 
     if options.low_cutoff != ' ':
         print("Low cutoff:",options.low_cutoff)
@@ -502,16 +565,21 @@ def main():
     ui.read_plot_loop(serial_OPS24x, options)
 
     # turn off all that we might have turned on
-    serial_OPS24x.write(0x03)  # send a break code
-    send_OPS24x_cmd(serial_OPS24x, "\nSet no Magnitude: ", OPS24x_Output_No_Magnitude)
-    send_OPS24x_cmd(serial_OPS24x, "\nSet no JSONy data: ", OPS24x_Output_No_JSONy_data)
-    send_OPS24x_cmd(serial_OPS24x, "\nSet no Raw data: ", OPS24x_Output_No_Raw)
-    send_OPS24x_cmd(serial_OPS24x, "\nSet no FFT data: ", OPS24x_Output_No_FFT)
-    send_OPS24x_cmd(serial_OPS24x, "\nSet no Time Domain data: ", OPS24x_Output_No_TimeSignal)
+    quit(serial_OPS24x)
+    
 
-    serial_OPS24x.close()
-    exit()
-
+def quit(serial_port):
+    if serial_port.isOpen() == True:
+        serial_port.write(0x03)  # send a break code
+        send_OPS24x_cmd(serial_port, "\nSet no Magnitude: ", OPS24x_Output_No_Magnitude)
+        send_OPS24x_cmd(serial_port, "\nSet no JSONy data: ", OPS24x_Output_No_JSONy_data)
+        send_OPS24x_cmd(serial_port, "\nSet no Raw data: ", OPS24x_Output_No_Raw)
+        send_OPS24x_cmd(serial_port, "\nSet no FFT data: ", OPS24x_Output_No_FFT)
+        send_OPS24x_cmd(serial_port, "\nSet no Time Domain data: ", OPS24x_Output_No_TimeSignal)
+        serial_port.close()
+    
+    print('quiting')
+    sys.exit(0)
 
 if __name__ == "__main__":
     main()
