@@ -142,6 +142,8 @@ class UI:
         global ax_max
         global ax_mid
         global ax_height
+        global b_setting
+        global b_chart
 
         self.serial_port = serial_port     
 
@@ -160,14 +162,16 @@ class UI:
         # plot1 = plt.axes()
 
         plt.figtext(0.50, 0.945, "TX Power")
+        plt.axes([0,.91,1,.0025], facecolor = 'k')
         #ax_label = plt.axes([0.5, 0.93, 0.09, 0.05])
         #lbl = TextBox(ax_label, "TX Power")
         ax_min = plt.axes([0.15, 0.8, 0.2, 0.1])
         ax_mid = plt.axes([0.4, 0.8, 0.2, 0.1])
         ax_max = plt.axes([0.65, 0.8, 0.2, 0.1])
         ax_quit = plt.axes([0.9, 0.01, 0.09, 0.05])
-        ax_height = plt.axes([.1,.925,.075,.05])
-        ax_setting = plt.axes([.3,.925,.1,.05])
+        ax_height = plt.axes([.1,.7,.075,.05])
+        ax_chart = plt.axes([0,.9125,.15,.075])
+        ax_setting = plt.axes([.15,.9125,.15,.075])
         b_min = Button(ax_min, 'Min')
         b_min.on_clicked(self.power_min)
         b_mid = Button(ax_mid, 'Mid')
@@ -176,8 +180,10 @@ class UI:
         b_max.on_clicked(self.power_max)
         b_quit = Button (ax_quit, 'Quit')
         b_quit.on_clicked(self.do_quit)
-        b_setting = Button(ax_setting, 'Settings')
+        b_setting = Button(ax_setting, 'Settings', color = 'dimgray', hovercolor = 'darkgrey')
         b_setting.on_clicked(self.open_settings)
+        b_chart = Button(ax_chart, 'Chart', color = 'whitesmoke', hovercolor = 'whitesmoke')
+        b_chart.on_clicked(self.close_settings)
         txt_height = TextBox(ax_height, 'Height ', initial = '200')
         txt_height.on_submit(self.change_height)
 
@@ -413,14 +419,39 @@ class UI:
 
     def open_settings(self, event):
         print("opening settings")
-        plot1.set_visible(not plot1.get_visible())
-        plot2.set_visible(not plot2.get_visible())
-        plot3.set_visible(not plot3.get_visible())
-        plot4.set_visible(not plot4.get_visible())
-        ax_min.set_visible(not ax_min.get_visible())
-        ax_mid.set_visible(not ax_mid.get_visible())
-        ax_max.set_visible(not ax_max.get_visible())
-        ax_height.set_visible(not ax_height.get_visible())
+        b_setting.color = 'whitesmoke'
+        b_setting.hovercolor = 'whitesmoke'
+        b_chart.color = 'dimgray'
+        b_chart.hovercolor = 'darkgrey'
+        ax_min.set_visible(True)
+        ax_mid.set_visible(True)
+        ax_max.set_visible(True)
+        ax_height.set_visible(True)
+        plot1.set_visible(False)
+        try:
+            plot2.set_visible(False)
+            plot3.set_visible(False)
+            plot4.set_visible(False)
+        except:
+            pass
+
+    def close_settings(self, event):
+        print("closing settings")
+        b_chart.color = 'whitesmoke'
+        b_chart.hovercolor = 'whitesmoke'
+        b_setting.color = 'dimgray'
+        b_setting.hovercolor = 'darkgrey'
+        ax_min.set_visible(False)
+        ax_mid.set_visible(False)
+        ax_max.set_visible(False)
+        ax_height.set_visible(False)
+        plot1.set_visible(True)
+        try:
+            plot2.set_visible(True)
+            plot3.set_visible(True)
+            plot4.set_visible(True)
+        except:
+            pass    
 
 def main():
     global fft_bin_low_cutoff
