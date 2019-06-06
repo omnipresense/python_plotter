@@ -109,7 +109,7 @@ def send_OPS24x_cmd(serial_port, console_msg_prefix, ops24x_command, match_crite
 
 fft_bin_low_cutoff = 0
 fft_bin_high_cutoff = 256
-graph_height = 200
+graph_ylim = None
 
 
 
@@ -133,15 +133,16 @@ class UI:
         complex_values_I = None
         complex_values_Q = None
         complex_values_T = None
-        global graph_height
+        global graph_ylim
         global plot1
         global plot2
         global plot3
         global plot4
+        global power_level_lbl
         global ax_min
         global ax_max
         global ax_mid
-        global ax_height
+        global ax_ylim
         global b_setting
         global b_chart
 
@@ -161,17 +162,19 @@ class UI:
         # fig = plt.figure()
         # plot1 = plt.axes()
 
-        plt.figtext(0.50, 0.945, "TX Power")
-        plt.axes([0,.91,1,.0025], facecolor = 'k')
+        plt.figtext(0.50, 0.945, "OPS24x Signal Plotter")
+        plt.axes([0,0.91,1,.0025], facecolor = 'k').get_xaxis().set_ticks([])
         #ax_label = plt.axes([0.5, 0.93, 0.09, 0.05])
         #lbl = TextBox(ax_label, "TX Power")
-        ax_min = plt.axes([0.15, 0.8, 0.2, 0.1])
-        ax_mid = plt.axes([0.4, 0.8, 0.2, 0.1])
-        ax_max = plt.axes([0.65, 0.8, 0.2, 0.1])
-        ax_quit = plt.axes([0.9, 0.01, 0.09, 0.05])
-        ax_height = plt.axes([.1,.7,.075,.05])
-        ax_chart = plt.axes([0,.9125,.15,.075])
-        ax_setting = plt.axes([.15,.9125,.15,.075])
+        power_level_lbl = plt.figtext(0.09, 0.86, "Power Level")
+        power_level_lbl.set_visible(False)
+        ax_min = plt.axes([0.15, 0.75, 0.2, 0.1])
+        ax_mid = plt.axes([0.4, 0.75, 0.2, 0.1])
+        ax_max = plt.axes([0.65, 0.75, 0.2, 0.1])
+        ax_quit = plt.axes([0.9, 0.95, 0.09, 0.05])
+        ax_ylim = plt.axes([0.21,0.65,0.075,0.05])
+        ax_chart = plt.axes([0.005,.912,.15,.075])
+        ax_setting = plt.axes([.15,.912,.15,.075])
         b_min = Button(ax_min, 'Min')
         b_min.on_clicked(self.power_min)
         b_mid = Button(ax_mid, 'Mid')
@@ -180,17 +183,17 @@ class UI:
         b_max.on_clicked(self.power_max)
         b_quit = Button (ax_quit, 'Quit')
         b_quit.on_clicked(self.do_quit)
-        b_setting = Button(ax_setting, 'Settings', color = 'dimgray', hovercolor = 'darkgrey')
+        b_setting = Button(ax_setting, 'Settings', color = 'darkgrey')  # , hovercolor = '')
         b_setting.on_clicked(self.open_settings)
-        b_chart = Button(ax_chart, 'Chart', color = 'whitesmoke', hovercolor = 'whitesmoke')
+        b_chart = Button(ax_chart, 'Chart', color = 'whitesmoke') # , hovercolor = 'whitesmoke')
         b_chart.on_clicked(self.close_settings)
-        txt_height = TextBox(ax_height, 'Height ', initial = '200')
-        txt_height.on_submit(self.change_height)
+        txt_ylim = TextBox(ax_ylim, 'Y axis limit ', initial = '')
+        txt_ylim.on_submit(self.change_ylim)
 
         ax_min.set_visible(False)
         ax_mid.set_visible(False)
         ax_max.set_visible(False)
-        ax_height.set_visible(False)
+        ax_ylim.set_visible(False)
 
         plt.subplots_adjust(top=0.9)
 
@@ -271,7 +274,8 @@ class UI:
                             plot1.set_xlabel('Bins')
                             plot1.set_ylabel('magnitude')
                             plot1.set_title("fft magnitudes")
-                            plot1.set_ylim(0,graph_height)
+                            if graph_ylim is not None:
+                                plot1.set_ylim(0,graph_ylim)
                             plot1.set_xlim(0,256)
                             plt.show(block=False)
                             plt.pause(0.001)
@@ -296,7 +300,7 @@ class UI:
                         plot1.set_title("raw signal", loc='left')
                         plot1.set_xlabel('Samples')
                         plot1.set_ylabel('Signal amplitude')
-                        plot1.set_ylim(0,graph_height)
+                        plot1.set_ylim(0-10,4095+10) # the sample signal is from 0-4095.  Never more.  Lock this one in (with margin)
                         plot1.set_xlim(0,256)    
                         plot1.legend(legend_arr, loc=1)
                         
@@ -308,7 +312,8 @@ class UI:
                             plot2.set_title("fft_I (local)", loc='left')
                             plot2.set_xlabel('Bins')
                             plot2.set_ylabel('Magnitude')
-                            plot2.set_ylim(0,graph_height)
+                            if graph_ylim is not None:
+                               plot2.set_ylim(0,graph_ylim)
                             plot2.set_xlim(0,256)
                             if post_fft_I is not None:
                                 plot2.plot(x_axis[fft_bin_low_cutoff:fft_bin_high_cutoff], np.abs(post_fft_I[fft_bin_low_cutoff:fft_bin_high_cutoff]))
@@ -321,7 +326,8 @@ class UI:
                             plot3.set_title("fft_Q (local)", loc='left')
                             plot3.set_xlabel('Bins')
                             plot3.set_ylabel('Magnitude')
-                            plot3.set_ylim(0,graph_height)
+                            if graph_ylim is not None:
+                                plot3.set_ylim(0,graph_ylim)
                             plot3.set_xlim(0,256)
                             if post_fft_Q is not None:
                                 plot3.plot(x_axis[fft_bin_low_cutoff:fft_bin_high_cutoff], np.abs(post_fft_Q[fft_bin_low_cutoff:fft_bin_high_cutoff]))
@@ -333,7 +339,8 @@ class UI:
                             plot4.set_xlabel('Bins')
                             plot4.set_ylabel('Magnitude')
                             plot4.plot(x_axis[fft_bin_low_cutoff:fft_bin_high_cutoff], np_values_FFT[fft_bin_low_cutoff:fft_bin_high_cutoff])
-                            plot4.set_ylim(0,graph_height)
+                            if graph_ylim is not None:
+                                plot4.set_ylim(0,graph_ylim)
                             plot4.set_xlim(0,256)
                             plt.show(block=False)
                             plt.pause(0.001)
@@ -366,7 +373,8 @@ class UI:
                             plot2.set_title("fft (local)", loc='left')
                             plot2.set_xlabel('Bins')
                             plot2.set_ylabel('Magnitude')
-                            plot2.set_ylim(0,graph_height)
+                            if graph_ylim is not None:
+                                plot2.set_ylim(0,graph_ylim)
                             plot2.set_xlim(0,256)
                             if post_fft is not None:
                                 plot2.plot(x_axis[fft_bin_low_cutoff:fft_bin_high_cutoff], np.abs(post_fft[fft_bin_low_cutoff:fft_bin_high_cutoff]))
@@ -377,7 +385,8 @@ class UI:
                                 plot3.set_title("fft (sensor)", loc='left')
                                 plot3.set_xlabel('Bins')
                                 plot3.set_ylabel('Magnitude')
-                                plot3.set_ylim(0,graph_height)
+                                if graph_ylim is not None:
+                                    plot3.set_ylim(0,graph_ylim)
                                 plot3.set_xlim(0,256)
                                 plot3.plot(x_axis[fft_bin_low_cutoff:fft_bin_high_cutoff], np_values_FFT[fft_bin_low_cutoff:fft_bin_high_cutoff])
 
@@ -412,21 +421,25 @@ class UI:
     def do_quit(self, event):
         quit(self.serial_port)
 
-    def change_height(self, text):
-        print('Changing Graph Height')
-        global graph_height 
-        graph_height = int(text)
+    def change_ylim(self, text):
+        print('Changing Graph Y-limit')
+        global graph_ylim
+        if (len(text) > 0):
+            graph_ylim = int(text)
+        else:
+            graph_ylim = None
 
     def open_settings(self, event):
         print("opening settings")
         b_setting.color = 'whitesmoke'
         b_setting.hovercolor = 'whitesmoke'
-        b_chart.color = 'dimgray'
-        b_chart.hovercolor = 'darkgrey'
+        b_chart.color = 'darkgray'
+        b_chart.hovercolor = 'whitesmoke'
+        power_level_lbl.set_visible(True)
         ax_min.set_visible(True)
         ax_mid.set_visible(True)
         ax_max.set_visible(True)
-        ax_height.set_visible(True)
+        ax_ylim.set_visible(True)
         plot1.set_visible(False)
         try:
             plot2.set_visible(False)
@@ -439,12 +452,13 @@ class UI:
         print("closing settings")
         b_chart.color = 'whitesmoke'
         b_chart.hovercolor = 'whitesmoke'
-        b_setting.color = 'dimgray'
+        b_setting.color = 'darkgray'
         b_setting.hovercolor = 'darkgrey'
+        power_level_lbl.set_visible(False)
         ax_min.set_visible(False)
         ax_mid.set_visible(False)
         ax_max.set_visible(False)
-        ax_height.set_visible(False)
+        ax_ylim.set_visible(False)
         plot1.set_visible(True)
         try:
             plot2.set_visible(True)
@@ -499,6 +513,14 @@ def main():
                        action="store_true",
                        dest="show_ranges",
                        default=True)
+    parser.add_option("--CW",
+                      action="store_true",
+                      dest="is_doppler",
+                      default=False)
+    parser.add_option("--FMCW",
+                      action="store_false",
+                      dest="is_doppler",
+                      default=True)
 
     (options, args) = parser.parse_args()
     if options.plot_I is None and options.plot_Q is None \
@@ -544,7 +566,7 @@ def main():
 
     print("\nInitializing Ops24x Module")
     rtn_val = send_OPS24x_cmd(serial_OPS24x, "\nQuery for Product: ", OPS24x_Query_Product, "Product")
-    if rtn_val.find("Doppler") >= 0:
+    if rtn_val.find("Doppler") >= 0 or options.is_doppler:
         is_doppler = True
     else:
         is_doppler = False
