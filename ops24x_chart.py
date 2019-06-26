@@ -6,11 +6,13 @@ import sys
 import serial
 from optparse import OptionParser
 import numpy as np
-from matplotlib.widgets import Button, TextBox
+from matplotlib.widgets import Button, TextBox, CheckButtons
 from platform import system
 import serial.tools.list_ports
 import json
 import pdb
+import time
+import threading
 
 import matplotlib
 #matplotlib.use('TkAgg')
@@ -39,11 +41,11 @@ import matplotlib.pyplot as plt
 # 
 #####################################################
 # Modifiable parameters
-
+ 
 
 # OPS24x module setting initialization constants
 #Fs = 10000
-NFFT = 1024
+NFFT = 1024 
 
 OPS24x_Sampling_Frequency = 'SX'     # 10Ksps
 OPS24x_Sampling_Size512 = 'S<'       # 512 FFT
@@ -101,16 +103,27 @@ def send_OPS24x_cmd(serial_port, console_msg_prefix, ops24x_command, match_crite
             if data_rx_length != 0:
                 data_rx_str = str(data_rx_bytes)
                 if data_rx_str.find(match_criteria):
-                    print(data_rx_str)
+                    # print(data_rx_str)
                     ser_write_verify = True
         return data_rx_str
     except serial.serialutil.SerialTimeoutException:
         print("Write timeout sending command:",ops24x_command)
+    except serial.serialutil.SerialException:
+        print("Connection Error (Write)")
 
 fft_bin_low_cutoff = 0
 fft_bin_high_cutoff = 256
 graph_ylim = None
+expect_data = True
+data_available = threading.Event()
 
+def read(serial_port):
+    global data_rx_bytes
+    global expect_data
+
+    if expect_data:
+        data_rx_bytes = serial_port.readline()
+        data_available.set()
 
 
 class UI:
@@ -133,24 +146,37 @@ class UI:
         complex_values_I = None
         complex_values_Q = None
         complex_values_T = None
+        title = "OPS241B Signal Plotter"
         global graph_ylim
+        global expect_data
         global plot1
         global plot2
         global plot3
-        global plot4
         global power_level_lbl
         global ax_min
         global ax_max
         global ax_mid
         global ax_ylim
+        global ax_xlim
+        global ax_border
+        global ax_pulse
+        global ax_do_pulse
+        global ax_charts
+        global ax_bin
         global b_setting
         global b_chart
+        global chk_pulse
+        global chk_chart
+        global chk_bin
 
-        self.serial_port = serial_port     
 
+        self.serial_port = serial_port 
+
+        if is_doppler:
+            title = "OPS241A Signal Plotter"  
 
         if options.plot_IQ_FFT:
-            f, (plot1, plot2, plot3, plot4) = plt.subplots(4, 1)
+            f, (plot1, plot2, plot3) = plt.subplots(3, 1)
         elif options.plot_IQ_only:
             f, (plot1) = plt.subplots(1, 1)
         elif options.plot_FFT:
@@ -162,19 +188,27 @@ class UI:
         # fig = plt.figure()
         # plot1 = plt.axes()
 
-        plt.figtext(0.50, 0.945, "OPS24x Signal Plotter")
+        plt.figtext(0.50, 0.945, title)
         plt.axes([0,0.91,1,.0025], facecolor = 'k').get_xaxis().set_ticks([])
         #ax_label = plt.axes([0.5, 0.93, 0.09, 0.05])
         #lbl = TextBox(ax_label, "TX Power")
         power_level_lbl = plt.figtext(0.09, 0.86, "Power Level")
         power_level_lbl.set_visible(False)
+        ax_border = plt.axes([.07, .625, .53, .1], visible = False)
+        ax_border.xaxis.set_visible(False)
+        ax_border.yaxis.set_visible(False)
         ax_min = plt.axes([0.15, 0.75, 0.2, 0.1])
         ax_mid = plt.axes([0.4, 0.75, 0.2, 0.1])
         ax_max = plt.axes([0.65, 0.75, 0.2, 0.1])
         ax_quit = plt.axes([0.9, 0.95, 0.09, 0.05])
         ax_ylim = plt.axes([0.21,0.65,0.075,0.05])
-        ax_chart = plt.axes([0.005,.912,.15,.075])
-        ax_setting = plt.axes([.15,.912,.15,.075])
+        ax_xlim = plt.axes([0.5,0.65,0.075,0.05])
+        ax_bin = plt.axes([.65, .475, .4, .4], frameon = False)
+        ax_pulse = plt.axes([.1, .4, .2, .2])
+        ax_do_pulse = plt.axes([.05,.025,.15,.05])
+        ax_chart = plt.axes([0.15,.912,.15,.075])
+        ax_setting = plt.axes([.005,.912,.15,.075])
+        ax_charts = plt.axes([.1, .1, .2, .2])
         b_min = Button(ax_min, 'Min')
         b_min.on_clicked(self.power_min)
         b_mid = Button(ax_mid, 'Mid')
@@ -189,13 +223,29 @@ class UI:
         b_chart.on_clicked(self.close_settings)
         txt_ylim = TextBox(ax_ylim, 'Y axis limit ', initial = '')
         txt_ylim.on_submit(self.change_ylim)
+        txt_xlim = TextBox(ax_xlim, 'Bin Limit', initial = '')
+        txt_xlim.on_submit(self.change_xlim)
+        chk_bin = CheckButtons(ax_bin, ['Check to start at 1'], [False])
+        chk_bin.on_clicked(self.toggle_bin_start)
+        chk_pulse = CheckButtons(ax_pulse, ['Pulse', 'Continuous'], [False, True])
+        chk_pulse.on_clicked(self.change_pulse)
+        chk_chart = CheckButtons(ax_charts, ['Signal', 'Local FFT', 'Sensor FFT'], [True, True, True])
+        b_do_pulse = Button(ax_do_pulse, 'Pulse')
+        b_do_pulse.on_clicked(self.do_pulse)
 
         ax_min.set_visible(False)
         ax_mid.set_visible(False)
         ax_max.set_visible(False)
         ax_ylim.set_visible(False)
+        ax_xlim.set_visible(False)
+        ax_pulse.set_visible(False)
+        ax_do_pulse.set_visible(False)
+        ax_charts.set_visible(False)
+        ax_bin.set_visible(False)
 
-        plt.subplots_adjust(top=0.9)
+        plot1.set_position([.15,.65,.8,.2])
+        plot2.set_position([.15,.35,.8,.2])
+        plot3.set_position([.15,.05,.8,.2])
 
         x_axis = np.linspace(0, sample_count - 1, sample_count)
         plt.ion()
@@ -206,21 +256,26 @@ class UI:
             serial_port.flushInput()
             serial_port.flushOutput()
             while serial_port.is_open:
+                try:
                 # fm.activateWindow()
                 # fm.raise_()
-                data_rx_bytes = serial_port.readline()
-                data_rx_length = len(data_rx_bytes)
-                if data_rx_length != 0:
-                    try:
+                    data_rx_length = 0
+                
+                    thread =  threading.Thread(target = read(serial_port))
+                    thread.start()
+                    data_available.wait()
+                    data_rx_length = len(data_rx_bytes)
+                    if data_rx_length != 0  :
                         data_rx_str = str.rstrip(str(data_rx_bytes.decode('utf-8', 'strict')))
-                        #print(data_rx_str)
+                        # print(data_rx_str)
 
                         pobj = json.loads(data_rx_str)
 
                         # read off the wire
                         values = None
+
                         if options.plot_I or options.plot_IQ or options.plot_IQ_only or options.plot_IQ_FFT:
-                            if pobj.get('I'):
+                              if pobj.get('I'):
                                 values_I = pobj['I']
                                 values = values_I
                                 np_values = np.array(values_I)
@@ -261,9 +316,12 @@ class UI:
                                     print("r[", idx, "]=", r['d'], "@", r['mag'])
                     
                         if values is None:
-                            #print("Unexpected data received.")
-                            print(data_rx_str)
+                            print("Unexpected data received.")
+                            # print(data_rx_str)
                             continue
+                        else:
+                            if chk_pulse.get_status() == [True, False]:
+                                expect_data = False
 
                         plot1.clear()
                         plot1.grid()
@@ -276,7 +334,7 @@ class UI:
                             plot1.set_title("fft magnitudes")
                             if graph_ylim is not None:
                                 plot1.set_ylim(0,graph_ylim)
-                            plot1.set_xlim(0,256)
+                            plot1.set_xlim(fft_bin_low_cutoff,fft_bin_high_cutoff)
                             plt.show(block=False)
                             plt.pause(0.001)
                             # matplotlib._pylab_helpers.Gcf.get_active().canvas.draw_idle()
@@ -301,47 +359,34 @@ class UI:
                         plot1.set_xlabel('Samples')
                         plot1.set_ylabel('Signal amplitude')
                         plot1.set_ylim(0-10,4095+10) # the sample signal is from 0-4095.  Never more.  Lock this one in (with margin)
-                        plot1.set_xlim(0,256)    
+                        plot1.set_xlim(0,np_values_I.size)    
                         plot1.legend(legend_arr, loc=1)
                         
-                        if options.plot_IQ_FFT and np_values_I is not None:
-                            complex_values_I = np_values_I.astype(complex)
-                            post_fft_I = np.fft.fft(complex_values_I, NFFT)
+                        if options.plot_IQ_FFT and np_values_I is not None and np_values_Q is not None:
+
+                            complex_values = np_values_I +1j * np_values_Q
+                            post_fft_local = np.fft.fft(complex_values, NFFT)
                             plot2.clear()
                             plot2.grid()
-                            plot2.set_title("fft_I (local)", loc='left')
+                            plot2.set_title("fft (local)", loc='left')
                             plot2.set_xlabel('Bins')
                             plot2.set_ylabel('Magnitude')
                             if graph_ylim is not None:
                                plot2.set_ylim(0,graph_ylim)
-                            plot2.set_xlim(0,256)
-                            if post_fft_I is not None:
-                                plot2.plot(x_axis[fft_bin_low_cutoff:fft_bin_high_cutoff], np.abs(post_fft_I[fft_bin_low_cutoff:fft_bin_high_cutoff]))
-
-                        if options.plot_IQ_FFT and np_values_Q is not None:
-                            complex_values_Q = 1j * np_values_Q.astype(complex)
-                            post_fft_Q = np.fft.fft(complex_values_Q, NFFT)
-                            plot3.clear()
-                            plot3.grid()
-                            plot3.set_title("fft_Q (local)", loc='left')
-                            plot3.set_xlabel('Bins')
-                            plot3.set_ylabel('Magnitude')
-                            if graph_ylim is not None:
-                                plot3.set_ylim(0,graph_ylim)
-                            plot3.set_xlim(0,256)
-                            if post_fft_Q is not None:
-                                plot3.plot(x_axis[fft_bin_low_cutoff:fft_bin_high_cutoff], np.abs(post_fft_Q[fft_bin_low_cutoff:fft_bin_high_cutoff]))
+                            plot2.set_xlim(fft_bin_low_cutoff,fft_bin_high_cutoff)
+                            if post_fft_local is not None:
+                                plot2.plot(x_axis[fft_bin_low_cutoff:fft_bin_high_cutoff], np.abs(post_fft_local[fft_bin_low_cutoff:fft_bin_high_cutoff]))
 
                         if options.plot_IQ_FFT and np_values_FFT is not None:
-                            plot4.clear()
-                            plot4.grid()
-                            plot4.set_title("fft (sensor)", loc='left')
-                            plot4.set_xlabel('Bins')
-                            plot4.set_ylabel('Magnitude')
-                            plot4.plot(x_axis[fft_bin_low_cutoff:fft_bin_high_cutoff], np_values_FFT[fft_bin_low_cutoff:fft_bin_high_cutoff])
+                            plot3.clear()
+                            plot3.grid()
+                            plot3.set_title("fft (sensor)", loc='left')
+                            plot3.set_xlabel('Bins')
+                            plot3.set_ylabel('Magnitude')
+                            plot3.plot(x_axis[fft_bin_low_cutoff:fft_bin_high_cutoff], np_values_FFT[fft_bin_low_cutoff:fft_bin_high_cutoff])
                             if graph_ylim is not None:
-                                plot4.set_ylim(0,graph_ylim)
-                            plot4.set_xlim(0,256)
+                                plot3.set_ylim(0,graph_ylim)
+                            plot3.set_xlim(fft_bin_low_cutoff,fft_bin_high_cutoff)
                             plt.show(block=False)
                             plt.pause(0.001)
                             continue
@@ -375,7 +420,8 @@ class UI:
                             plot2.set_ylabel('Magnitude')
                             if graph_ylim is not None:
                                 plot2.set_ylim(0,graph_ylim)
-                            plot2.set_xlim(0,256)
+                            plot2.set_xlim(fft_bin_low_cutoff,fft_bin_high_cutoff)
+
                             if post_fft is not None:
                                 plot2.plot(x_axis[fft_bin_low_cutoff:fft_bin_high_cutoff], np.abs(post_fft[fft_bin_low_cutoff:fft_bin_high_cutoff]))
 
@@ -387,24 +433,57 @@ class UI:
                                 plot3.set_ylabel('Magnitude')
                                 if graph_ylim is not None:
                                     plot3.set_ylim(0,graph_ylim)
-                                plot3.set_xlim(0,256)
+                                plot3.set_xlim(fft_bin_low_cutoff,fft_bin_high_cutoff)
                                 plot3.plot(x_axis[fft_bin_low_cutoff:fft_bin_high_cutoff], np_values_FFT[fft_bin_low_cutoff:fft_bin_high_cutoff])
 
                         plt.show(block=False)
                         plt.pause(0.001)
 
-                    except UnicodeDecodeError:
-                        print("ERROR: Prior line failed to decode. Continuing.")
-                    except json.decoder.JSONDecodeError:
-                        print("ERROR: Prior line failed to parse. Continuing.")
-                        print(data_rx_str)
-                        print("ERROR-end: Resuming.")
-                    except (ValueError, AttributeError) as err:
-                        print("error in values/computation. toss and continue. details: {0}".format(err))
-                        values = None
-                    # except:  # catch *all* exceptions
-                    #     e = sys.exc_info()[0]
-                    #     print(e)                  
+                except UnicodeDecodeError:
+                    print("ERROR: Prior line failed to decode. Continuing.")
+                except json.decoder.JSONDecodeError:
+                    print("ERROR: Prior line failed to parse. Continuing.")
+                    # print(data_rx_str)
+                    print("ERROR-end: Resuming.")
+                except (ValueError, AttributeError) as err:
+                    print("error in values/computation. toss and continue. details: {0}".format(err))
+                    values = None
+                except serial.serialutil.SerialException:
+                    print("Connection Error")
+                    serial_port.close()
+                    serial_port = serial.Serial(
+                        #baudrate=options.baudrate,
+                        parity=serial.PARITY_NONE,
+                        stopbits=serial.STOPBITS_ONE,
+                        bytesize=serial.EIGHTBITS,
+                        timeout=1,
+                        writeTimeout=2
+                    )
+                    serial_port.port = 'COM5'
+                    for x in range(5, 0, -1):
+                        print(str(x) + ' seconds remaining to reconnect')
+                        time.sleep(1)
+                        try:
+                            serial_port.open()
+                            break
+                        except:
+                            pass
+
+                    if serial_port.is_open:
+                        if options.plot_FFT or options.plot_IQ_FFT:
+                            send_OPS24x_cmd(serial_port, "\nSet yes FFT data: ", OPS24x_Output_FFT)
+                        else:
+                            send_OPS24x_cmd(serial_port, "\nSet no FFT data: ", OPS24x_Output_No_FFT)
+
+                        if options.plot_I or options.plot_Q or options.plot_IQ or options.plot_IQ_only or options.plot_IQ_FFT:
+                            send_OPS24x_cmd(serial_port, "\nSet yes Raw data: ", OPS24x_Output_Raw)
+                        else:
+                            send_OPS24x_cmd(serial_port, "\nSet no Raw data: ", OPS24x_Output_No_Raw)
+                    # except (portNotOpenError):
+                    #     print('Port has not reopened')
+                # except:  # catch *all* exceptions
+                #     e = sys.exc_info()[0]
+                #     print(e)                  
 
         except KeyboardInterrupt:
             print("Keyboard interrupt received. Exiting.")
@@ -429,6 +508,48 @@ class UI:
         else:
             graph_ylim = None
 
+    def change_xlim(self, text):
+        print('Changing Bin Cutoff')
+        global fft_bin_high_cutoff
+        if (len(text) > 0):
+            fft_bin_high_cutoff = int(text)
+        else:
+            fft_bin_high_cutoff = 256
+
+    def change_pulse(self, index):
+        print ('activating pulse')
+        global expect_data
+        i = 1
+        if index == 'Pulse':
+            i = 0
+        # Validate State
+        if chk_pulse.get_status() == [True, True]:
+            chk_pulse.set_active((i+1)%2)
+        elif chk_pulse.get_status() == [False, False]:
+            chk_pulse.set_active(i)
+        # Take Action
+        if chk_pulse.get_status() == [False, True]:
+            send_OPS24x_cmd(self.serial_port, "\nSet Continuous: ", OPS24x_Power_Active)
+            expect_data = True
+        else:
+            for x in range(1,4):
+                expect_data = True
+                send_OPS24x_cmd(self.serial_port, "\nSet Pulse: ", OPS24x_Power_Pulse)
+
+    def toggle_bin_start(self, index):
+        global fft_bin_low_cutoff
+        if chk_bin.get_status() == [True]:
+            fft_bin_low_cutoff = 1
+        else:
+            fft_bin_low_cutoff = 0
+
+    def do_pulse(self, event):
+        # pdb.set_trace()
+        global expect_data
+        for x in range(1,4):
+            expect_data = True
+            send_OPS24x_cmd(self.serial_port, "\nSet Pulse: ", OPS24x_Power_Pulse)
+
     def open_settings(self, event):
         print("opening settings")
         b_setting.color = 'whitesmoke'
@@ -440,15 +561,21 @@ class UI:
         ax_mid.set_visible(True)
         ax_max.set_visible(True)
         ax_ylim.set_visible(True)
+        ax_xlim.set_visible(True)
+        ax_border.set_visible(True)
+        ax_pulse.set_visible(True)
+        ax_charts.set_visible(True)
+        ax_bin.set_visible(True)
+        ax_do_pulse.set_visible(False)
         plot1.set_visible(False)
         try:
             plot2.set_visible(False)
             plot3.set_visible(False)
-            plot4.set_visible(False)
         except:
             pass
 
     def close_settings(self, event):
+        global chk_chart
         print("closing settings")
         b_chart.color = 'whitesmoke'
         b_chart.hovercolor = 'whitesmoke'
@@ -459,13 +586,42 @@ class UI:
         ax_mid.set_visible(False)
         ax_max.set_visible(False)
         ax_ylim.set_visible(False)
-        plot1.set_visible(True)
-        try:
-            plot2.set_visible(True)
-            plot3.set_visible(True)
-            plot4.set_visible(True)
-        except:
-            pass    
+        ax_xlim.set_visible(False)
+        ax_border.set_visible(False)
+        ax_charts.set_visible(False)
+        ax_bin.set_visible(False)
+        ax_pulse.set_visible(False)
+
+        chart_space = .9
+        start_height = .05
+
+        if chk_pulse.get_status() == [True, False]:
+            ax_do_pulse.set_visible(True)
+            chart_space = .825
+            start_height = .125
+
+        chk_vals = chk_chart.get_status()
+        count = 0
+        for t in chk_vals:
+            if t:
+                count = 1 + count
+
+        chart_height = (chart_space / count) - .1
+
+        if chk_vals[2]:
+            plot3.set_position([.15,start_height,.8,chart_height])
+            start_height = start_height + chart_height + .1
+        if chk_vals[1]:
+            plot2.set_position([.15,start_height,.8,chart_height])
+            start_height = start_height + chart_height + .1
+        if chk_vals[0]:
+            plot1.set_position([.15,start_height,.8,chart_height])
+
+        plot1.set_visible(chk_vals[0])
+        plot2.set_visible(chk_vals[1])
+        plot3.set_visible(chk_vals[2])
+
+        plt.show()
 
 def main():
     global fft_bin_low_cutoff
@@ -529,10 +685,11 @@ def main():
             and options.plot_IQ is None \
             and options.plot_IQ_only is None \
             and options.plot_IQ_FFT is None:
-        options.plot_FFT = True
+        options.plot_IQ_FFT = True
 
     global is_doppler
     global sample_count
+    global serial_OPS24x
 
 
     # Initialize the USB port to read from the OPS-24x module
@@ -546,6 +703,7 @@ def main():
     )
     # print([comport.device for comport in serial.tools.list_ports.comports()])
 
+
     port_value = "";
     if options.port_name is None or len(options.port_name) < 1:
         if len(serial.tools.list_ports.comports()):
@@ -553,7 +711,7 @@ def main():
         elif system() == "Linux":
             serial_OPS24x.port = "/dev/ttyACM0"  # good for linux
         else:
-            serial_OPS24x.port = "COM4"  # maybe we'll luck out on windows
+            serial_OPS24x.port = "COM3"  # maybe we'll luck out on windows
     else:
         serial_OPS24x.port = options.port_name
 
@@ -572,6 +730,7 @@ def main():
         is_doppler = False
 
     send_OPS24x_cmd(serial_OPS24x, "\nSet yes Magnitude: ", OPS24x_Output_Magnitude)
+    send_OPS24x_cmd(serial_OPS24x, "\nSet Power Active Mode: ", OPS24x_Power_Active)
 
     if options.wait_letter != ' ':
         print("Sending wait argument:",options.wait_letter)
