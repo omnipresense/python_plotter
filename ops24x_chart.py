@@ -82,6 +82,7 @@ OPS24x_Output_TimeSignal = 'OT'      # send timedomain signal
 OPS24x_Output_No_TimeSignal = 'Ot'   # don't send timedomain signal
 OPS24x_Output_JSONy_data = 'OJ'      # send JSON formatted data
 OPS24x_Output_No_JSONy_data = 'Oj'   # don't send JSON formatted data
+OPS24x_Output_No_Binary_data = 'Ob'  # don't use binary mode
 
 
 # send_OPS24x_cmd: function for sending commands to the OPS-24x module
@@ -153,16 +154,17 @@ class UI:
         global plot2
         global plot3
         global power_level_lbl
-        global ax_min
+        global fft_lbl
         global ax_max
         global ax_mid
+        global ax_min
         global ax_ylim
         global ax_xlim
         global ax_border
         global ax_pulse
         global ax_do_pulse
         global ax_charts
-        global ax_bin
+        global ax_bin0
         global b_setting
         global b_chart
         global chk_pulse
@@ -173,7 +175,7 @@ class UI:
         self.serial_port = serial_port 
 
         if is_doppler:
-            title = "OPS241A Signal Plotter"  
+            title = "OPS241A Signal Plotter"
 
         if options.plot_IQ_FFT:
             f, (plot1, plot2, plot3) = plt.subplots(3, 1)
@@ -188,48 +190,61 @@ class UI:
         # fig = plt.figure()
         # plot1 = plt.axes()
 
+        # top tabs
+        ax_chart = plt.axes([0.15,.912,.15,.075])
+        ax_setting = plt.axes([.005,.912,.15,.075])
+        ax_quit = plt.axes([0.9, 0.95, 0.09, 0.05])
+        b_setting = Button(ax_setting, 'Settings', color = 'darkgrey')  # , hovercolor = '')
+        b_setting.on_clicked(self.open_settings)
+        b_chart = Button(ax_chart, 'Chart', color = 'whitesmoke') # , hovercolor = 'whitesmoke')
+        b_chart.on_clicked(self.close_settings)
+
         plt.figtext(0.50, 0.945, title)
         plt.axes([0,0.91,1,.0025], facecolor = 'k').get_xaxis().set_ticks([])
         #ax_label = plt.axes([0.5, 0.93, 0.09, 0.05])
         #lbl = TextBox(ax_label, "TX Power")
         power_level_lbl = plt.figtext(0.09, 0.86, "Power Level")
         power_level_lbl.set_visible(False)
-        ax_border = plt.axes([.07, .625, .53, .1], visible = False)
+
+        fft_base_y = 0.62
+        fft_lbl = plt.figtext(0.09, fft_base_y+0.06, "FFT Chart Control")
+        fft_lbl.set_visible(False)
+        ax_border = plt.axes([0.1, fft_base_y-0.05, 0.80, 0.1], visible = False)
         ax_border.xaxis.set_visible(False)
         ax_border.yaxis.set_visible(False)
-        ax_min = plt.axes([0.15, 0.75, 0.2, 0.1])
-        ax_mid = plt.axes([0.4, 0.75, 0.2, 0.1])
-        ax_max = plt.axes([0.65, 0.75, 0.2, 0.1])
-        ax_quit = plt.axes([0.9, 0.95, 0.09, 0.05])
-        ax_ylim = plt.axes([0.21,0.65,0.075,0.05])
-        ax_xlim = plt.axes([0.5,0.65,0.075,0.05])
-        ax_bin = plt.axes([.65, .475, .4, .4], frameon = False)
-        ax_pulse = plt.axes([.1, .4, .2, .2])
+        ax_max = plt.axes([0.1, 0.75, 0.15, 0.1])
+        ax_mid = plt.axes([0.25, 0.75, 0.15, 0.1])
+        ax_min = plt.axes([0.4, 0.75, 0.15, 0.1])
+        ax_ylim = plt.axes([0.25, fft_base_y-0.023, 0.075, 0.05])
+        ax_xlim = plt.axes([0.50, fft_base_y-0.023, 0.075, 0.05])
+        ax_bin0 = plt.axes([0.65, fft_base_y-0.2, 0.4, 0.4], frameon = False)  # why the larger offset?
+
+
+        ax_charts = plt.axes([.1, .33, .2, .2])
+        ax_pulse = plt.axes([0.1, 0.12, 0.2, 0.15])
         ax_do_pulse = plt.axes([.05,.025,.15,.05])
-        ax_chart = plt.axes([0.15,.912,.15,.075])
-        ax_setting = plt.axes([.005,.912,.15,.075])
-        ax_charts = plt.axes([.1, .1, .2, .2])
-        b_min = Button(ax_min, 'Min')
-        b_min.on_clicked(self.power_min)
-        b_mid = Button(ax_mid, 'Mid')
-        b_mid.on_clicked(self.power_mid)
+
+        # power buttons
         b_max = Button(ax_max, 'Max')
         b_max.on_clicked(self.power_max)
+        b_mid = Button(ax_mid, 'Mid')
+        b_mid.on_clicked(self.power_mid)
+        b_min = Button(ax_min, 'Min')
+        b_min.on_clicked(self.power_min)
+
         b_quit = Button (ax_quit, 'Quit')
         b_quit.on_clicked(self.do_quit)
-        b_setting = Button(ax_setting, 'Settings', color = 'darkgrey')  # , hovercolor = '')
-        b_setting.on_clicked(self.open_settings)
-        b_chart = Button(ax_chart, 'Chart', color = 'whitesmoke') # , hovercolor = 'whitesmoke')
-        b_chart.on_clicked(self.close_settings)
         txt_ylim = TextBox(ax_ylim, 'Y axis limit ', initial = '')
         txt_ylim.on_submit(self.change_ylim)
-        txt_xlim = TextBox(ax_xlim, 'Bin Limit', initial = '')
+        txt_xlim = TextBox(ax_xlim, 'Max Bin ', initial = '')
         txt_xlim.on_submit(self.change_xlim)
-        chk_bin = CheckButtons(ax_bin, ['Check to start at 1'], [False])
+        chk_bin = CheckButtons(ax_bin0, ['Hide Bin 0'], [False])
         chk_bin.on_clicked(self.toggle_bin_start)
+
         chk_pulse = CheckButtons(ax_pulse, ['Pulse', 'Continuous'], [False, True])
         chk_pulse.on_clicked(self.change_pulse)
         chk_chart = CheckButtons(ax_charts, ['Signal', 'Local FFT', 'Sensor FFT'], [True, True, True])
+
         b_do_pulse = Button(ax_do_pulse, 'Pulse')
         b_do_pulse.on_clicked(self.do_pulse)
 
@@ -241,11 +256,13 @@ class UI:
         ax_pulse.set_visible(False)
         ax_do_pulse.set_visible(False)
         ax_charts.set_visible(False)
-        ax_bin.set_visible(False)
+        ax_bin0.set_visible(False)
 
         plot1.set_position([.15,.65,.8,.2])
-        plot2.set_position([.15,.35,.8,.2])
-        plot3.set_position([.15,.05,.8,.2])
+        if plot2 is not None:
+            plot2.set_position([.15,.35,.8,.2])
+        if plot3 is not None:
+            plot3.set_position([.15,.05,.8,.2])
 
         x_axis = np.linspace(0, sample_count - 1, sample_count)
         plt.ion()
@@ -274,7 +291,7 @@ class UI:
                         # read off the wire
                         values = None
 
-                        if options.plot_I or options.plot_IQ or options.plot_IQ_only or options.plot_IQ_FFT:
+                        if options.plot_I or options.plot_IQ_and_local_FFT or options.plot_IQ_only or options.plot_IQ_FFT:
                               if pobj.get('I'):
                                 values_I = pobj['I']
                                 values = values_I
@@ -286,7 +303,7 @@ class UI:
                                 np_values_I = np_values_I * -1
                                 np_values_I = np_values_I * 16 * (3.3/4096)
                                 np_values_I = np_values_I * hann_window * 2
-                        if options.plot_Q or options.plot_IQ or options.plot_IQ_only or options.plot_IQ_FFT:
+                        if options.plot_Q or options.plot_IQ_and_local_FFT or options.plot_IQ_only or options.plot_IQ_FFT:
                             if pobj.get('Q'):
                                 values_Q = pobj['Q']
                                 values = values_Q
@@ -342,12 +359,12 @@ class UI:
                             continue
 
                         legend_arr = []
-                        if options.plot_I or options.plot_IQ or options.plot_IQ_only or options.plot_IQ_FFT:
+                        if options.plot_I or options.plot_IQ_and_local_FFT or options.plot_IQ_only or options.plot_IQ_FFT:
                             if np_values_I is not None:
                                 plot1.plot(x_axis, values_I)
                                 legend_arr.append("I")
                         # observe this is NOT an elif in order to maybe plot both I and Q....
-                        if options.plot_Q or options.plot_IQ or options.plot_IQ_only or options.plot_IQ_FFT:
+                        if options.plot_Q or options.plot_IQ_and_local_FFT or options.plot_IQ_only or options.plot_IQ_FFT:
                             if np_values_Q is not None:
                                 plot1.plot(x_axis, values_Q)
                                 legend_arr.append("Q")
@@ -393,7 +410,7 @@ class UI:
 
                         if not options.plot_IQ_only:
                             # do the FFT (unless options.plot_FFT which means 'just show the sensor's output', but they left already
-                            if options.plot_IQ: 
+                            if options.plot_IQ_and_local_FFT or options.plot_IQ_FFT:
                                 if np_values_I is not None and np_values_Q is not None:
                                     # mingle the I and Q and do the FFT
                                     complex_values = np_values_I + 1j * np_values_Q
@@ -460,7 +477,7 @@ class UI:
                         writeTimeout=2
                     )
                     serial_port.port = 'COM5'
-                    for x in range(5, 0, -1):
+                    for x in range(10, 0, -1):
                         print(str(x) + ' seconds remaining to reconnect')
                         time.sleep(1)
                         try:
@@ -557,6 +574,7 @@ class UI:
         b_chart.color = 'darkgray'
         b_chart.hovercolor = 'whitesmoke'
         power_level_lbl.set_visible(True)
+        fft_lbl.set_visible(True)
         ax_min.set_visible(True)
         ax_mid.set_visible(True)
         ax_max.set_visible(True)
@@ -565,7 +583,7 @@ class UI:
         ax_border.set_visible(True)
         ax_pulse.set_visible(True)
         ax_charts.set_visible(True)
-        ax_bin.set_visible(True)
+        ax_bin0.set_visible(True)
         ax_do_pulse.set_visible(False)
         plot1.set_visible(False)
         try:
@@ -582,6 +600,7 @@ class UI:
         b_setting.color = 'darkgray'
         b_setting.hovercolor = 'darkgrey'
         power_level_lbl.set_visible(False)
+        fft_lbl.set_visible(False)
         ax_min.set_visible(False)
         ax_mid.set_visible(False)
         ax_max.set_visible(False)
@@ -589,7 +608,7 @@ class UI:
         ax_xlim.set_visible(False)
         ax_border.set_visible(False)
         ax_charts.set_visible(False)
-        ax_bin.set_visible(False)
+        ax_bin0.set_visible(False)
         ax_pulse.set_visible(False)
 
         chart_space = .9
@@ -652,7 +671,7 @@ def main():
                        dest="plot_IQ_only")
     parser.add_option("-2", "--plot_IQ",
                        action="store_true",
-                       dest="plot_IQ")
+                       dest="plot_IQ_and_local_FFT")
     parser.add_option("-T", "--plot_T",
                        action="store_true",
                        dest="plot_T")
@@ -682,7 +701,7 @@ def main():
     if options.plot_I is None and options.plot_Q is None \
             and options.plot_T is None \
             and options.plot_FFT is None \
-            and options.plot_IQ is None \
+            and options.plot_IQ_and_local_FFT is None \
             and options.plot_IQ_only is None \
             and options.plot_IQ_FFT is None:
         options.plot_IQ_FFT = True
@@ -703,7 +722,6 @@ def main():
     )
     # print([comport.device for comport in serial.tools.list_ports.comports()])
 
-
     port_value = "";
     if options.port_name is None or len(options.port_name) < 1:
         if len(serial.tools.list_ports.comports()):
@@ -723,6 +741,7 @@ def main():
     # Initialize and query Ops24x Module
 
     print("\nInitializing Ops24x Module")
+    rtn_val = send_OPS24x_cmd(serial_OPS24x, "\nSet no binary data: ", OPS24x_Output_No_Binary_data)
     rtn_val = send_OPS24x_cmd(serial_OPS24x, "\nQuery for Product: ", OPS24x_Query_Product, "Product")
     if rtn_val.find("Doppler") >= 0 or options.is_doppler:
         is_doppler = True
@@ -757,7 +776,7 @@ def main():
 
     send_OPS24x_cmd(serial_OPS24x, "\nSet yes JSONy data: ", OPS24x_Output_JSONy_data)
 
-    if options.plot_I or options.plot_Q or options.plot_IQ or options.plot_IQ_only or options.plot_IQ_FFT:
+    if options.plot_I or options.plot_Q or options.plot_IQ_and_local_FFT or options.plot_IQ_only or options.plot_IQ_FFT:
         send_OPS24x_cmd(serial_OPS24x, "\nSet yes Raw data: ", OPS24x_Output_Raw)
     else:
         send_OPS24x_cmd(serial_OPS24x, "\nSet no Raw data: ", OPS24x_Output_No_Raw)
