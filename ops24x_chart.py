@@ -44,12 +44,22 @@ import matplotlib.pyplot as plt
  
 
 # OPS24x module setting initialization constants
-#Fs = 10000
-NFFT = 1024 
 
-OPS24x_Sampling_Frequency = 'SX'     # 10Ksps
-OPS24x_Sampling_Size512 = 'S<'       # 512 FFT
-OPS24x_Sampling_Size1024 = 'S>'       # 512 FFT
+OPS24x_CW_Sampling_Freq10 = 'SX'      # 10Ksps
+
+OPS24x_CW_Sampling_Size256 = 'S['     # 256 data size
+OPS24x_CW_Sampling_Size512 = 'S<'     # 512 data size
+OPS24x_CW_Sampling_Size1024 = 'S>'    # 1024 data size
+OPS24x_CW_Sampling_Size2048 = 'S*'    # 2048 data size
+
+OPS24x_FMCW_Sampling_Freq100 = 's=100' # 100Ksps
+OPS24x_FMCW_Sampling_Freq320 = 's=320' # 320Ksps
+OPS24x_FMCW_Sampling_Freq600 = 's=600' # 600Ksps
+
+OPS24x_FMCW_Sampling_Size256 = 's['   # 256 data size
+OPS24x_FMCW_Sampling_Size512 = 's<'   # 512 data size
+OPS24x_FMCW_Sampling_Size1024 = 's>'  # 1024 data size
+OPS24x_FMCW_Sampling_Size2048 = 's*'  # 2048 data size
 
 OPS24x_Blanks_Send_Zeros = 'BZ'
 OPS24x_Blanks_Send_Void = 'BV'
@@ -171,7 +181,6 @@ class UI:
         global chk_chart
         global chk_bin
 
-
         self.serial_port = serial_port 
 
         if is_doppler:
@@ -218,7 +227,6 @@ class UI:
         ax_ylim = plt.axes([0.25, fft_base_y-0.023, 0.075, 0.05])
         ax_xlim = plt.axes([0.50, fft_base_y-0.023, 0.075, 0.05])
         ax_bin0 = plt.axes([0.65, fft_base_y-0.2, 0.4, 0.4], frameon = False)  # why the larger offset?
-
 
         ax_charts = plt.axes([.1, .33, .2, .2])
         ax_pulse = plt.axes([0.1, 0.12, 0.2, 0.15])
@@ -277,7 +285,7 @@ class UI:
                 # fm.activateWindow()
                 # fm.raise_()
                     data_rx_length = 0
-                
+
                     thread =  threading.Thread(target = read(serial_port))
                     thread.start()
                     data_available.wait()
@@ -331,7 +339,7 @@ class UI:
                                 print("next Range_Data.  Range (in", values['unit'], ") @ magnitude")
                                 for idx, r in enumerate(ranges):
                                     print("r[", idx, "]=", r['d'], "@", r['mag'])
-                    
+
                         if values is None:
                             print("Unexpected data received.")
                             # print(data_rx_str)
@@ -376,11 +384,10 @@ class UI:
                         plot1.set_xlabel('Samples')
                         plot1.set_ylabel('Signal amplitude')
                         plot1.set_ylim(0-10,4095+10) # the sample signal is from 0-4095.  Never more.  Lock this one in (with margin)
-                        plot1.set_xlim(0,np_values_I.size)    
+                        plot1.set_xlim(0,np_values_I.size)
                         plot1.legend(legend_arr, loc=1)
-                        
-                        if options.plot_IQ_FFT and np_values_I is not None and np_values_Q is not None:
 
+                        if options.plot_IQ_FFT and np_values_I is not None and np_values_Q is not None:
                             complex_values = np_values_I +1j * np_values_Q
                             post_fft_local = np.fft.fft(complex_values, NFFT)
                             plot2.clear()
@@ -500,7 +507,7 @@ class UI:
                     #     print('Port has not reopened')
                 # except:  # catch *all* exceptions
                 #     e = sys.exc_info()[0]
-                #     print(e)                  
+                #     print(e)
 
         except KeyboardInterrupt:
             print("Keyboard interrupt received. Exiting.")
@@ -660,6 +667,9 @@ def main():
     parser.add_option("-c", "--low_cutoff", dest="low_cutoff",
                       default=" ",
                       help="low_cutoff")
+    parser.add_option("-z", "--fft_size", dest="fft_size",
+                      default=" ",
+                      help="fft_size")
     parser.add_option("-I", "--plot_I",
                        action="store_true",
                        dest="plot_I")
@@ -708,8 +718,8 @@ def main():
 
     global is_doppler
     global sample_count
+    global NFFT
     global serial_OPS24x
-
 
     # Initialize the USB port to read from the OPS-24x module
     serial_OPS24x = serial.Serial(
@@ -757,18 +767,26 @@ def main():
     if options.power_letter != ' ':
         print("Sending power argument:",options.power_letter)
         send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x Power: ", "P"+options.power_letter)
-    
+
     sample_count = 512
+    NFFT = 1024 
     if is_doppler:
-        print("Sending CW sampling rate and size:",options.power_letter)
-        send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x Frequency: ", OPS24x_Sampling_Frequency)
+        print("Sending CW sampling rate and size:", options.power_letter)
+        send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x CW Frequency: ", OPS24x_CW_Sampling_Freq10)
         sample_count = 1024
-        send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x Size: ", OPS24x_Sampling_Size1024)
+        NFFT = 1024 
+        send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x CW Size: ", OPS24x_CW_Sampling_Size1024)
+    else:
+        print("Sending FMCW sampling rate and size:", options.power_letter)
+        send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x FMCW Frequency: ", OPS24x_FMCW_Sampling_Freq320)
+        sample_count = 512
+        NFFT = 1024 
+        send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x FMCW Size: ", OPS24x_FMCW_Sampling_Size512)
+
     global hann_window
     global blackman_window
     hann_window = np.hanning(sample_count)
     blackman_window = np.blackman(sample_count)
-
 
     if options.low_cutoff != ' ':
         print("Low cutoff:",options.low_cutoff)
@@ -797,7 +815,7 @@ def main():
 
     # turn off all that we might have turned on
     quit(serial_OPS24x)
-    
+
 
 def quit(serial_port):
     if serial_port.isOpen() == True:
@@ -808,7 +826,7 @@ def quit(serial_port):
         send_OPS24x_cmd(serial_port, "\nSet no FFT data: ", OPS24x_Output_No_FFT)
         send_OPS24x_cmd(serial_port, "\nSet no Time Domain data: ", OPS24x_Output_No_TimeSignal)
         serial_port.close()
-    
+
     print('quiting')
     sys.exit(0)
 
