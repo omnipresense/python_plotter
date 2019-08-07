@@ -272,7 +272,8 @@ class UI:
         if plot3 is not None:
             plot3.set_position([.15,.05,.8,.2])
 
-        x_axis = np.linspace(0, sample_count - 1, sample_count)
+        x_axis_raw = np.linspace(0, sample_count - 1, sample_count)
+        x_axis_fft = np.linspace(0, NFFT - 1, NFFT)
         plt.ion()
 
         try:
@@ -341,8 +342,8 @@ class UI:
                                     print("r[", idx, "]=", r['d'], "@", r['mag'])
 
                         if values is None:
-                            print("Unexpected data received.")
-                            # print(data_rx_str)
+                            #print("Unexpected data received.")
+                            print(data_rx_str)
                             continue
                         else:
                             if chk_pulse.get_status() == [True, False]:
@@ -353,7 +354,7 @@ class UI:
 
                         # FFT is a special one-and-done
                         if options.plot_FFT and np_values_FFT is not None:
-                            plot1.plot(x_axis[fft_bin_low_cutoff:fft_bin_high_cutoff], np_values_FFT[fft_bin_low_cutoff:fft_bin_high_cutoff])
+                            plot1.plot(x_axis_fft[fft_bin_low_cutoff:fft_bin_high_cutoff], np_values_FFT[fft_bin_low_cutoff:fft_bin_high_cutoff])
                             plot1.set_xlabel('Bins')
                             plot1.set_ylabel('magnitude')
                             plot1.set_title("fft magnitudes")
@@ -369,15 +370,15 @@ class UI:
                         legend_arr = []
                         if options.plot_I or options.plot_IQ_and_local_FFT or options.plot_IQ_only or options.plot_IQ_FFT:
                             if np_values_I is not None:
-                                plot1.plot(x_axis, values_I)
+                                plot1.plot(x_axis_raw, values_I)
                                 legend_arr.append("I")
                         # observe this is NOT an elif in order to maybe plot both I and Q....
                         if options.plot_Q or options.plot_IQ_and_local_FFT or options.plot_IQ_only or options.plot_IQ_FFT:
                             if np_values_Q is not None:
-                                plot1.plot(x_axis, values_Q)
+                                plot1.plot(x_axis_raw, values_Q)
                                 legend_arr.append("Q")
                         if options.plot_T:
-                            plot1.plot(x_axis, np_values_T)
+                            plot1.plot(x_axis_raw, np_values_T)
                             legend_arr.append("signal")
 
                         plot1.set_title("raw signal", loc='left')
@@ -399,7 +400,7 @@ class UI:
                                plot2.set_ylim(0,graph_ylim)
                             plot2.set_xlim(fft_bin_low_cutoff,fft_bin_high_cutoff)
                             if post_fft_local is not None:
-                                plot2.plot(x_axis[fft_bin_low_cutoff:fft_bin_high_cutoff], np.abs(post_fft_local[fft_bin_low_cutoff:fft_bin_high_cutoff]))
+                                plot2.plot(x_axis_fft[fft_bin_low_cutoff:fft_bin_high_cutoff], np.abs(post_fft_local[fft_bin_low_cutoff:fft_bin_high_cutoff]))
 
                         if options.plot_IQ_FFT and np_values_FFT is not None:
                             plot3.clear()
@@ -407,7 +408,7 @@ class UI:
                             plot3.set_title("fft (sensor)", loc='left')
                             plot3.set_xlabel('Bins')
                             plot3.set_ylabel('Magnitude')
-                            plot3.plot(x_axis[fft_bin_low_cutoff:fft_bin_high_cutoff], np_values_FFT[fft_bin_low_cutoff:fft_bin_high_cutoff])
+                            plot3.plot(x_axis_fft[fft_bin_low_cutoff:fft_bin_high_cutoff], np_values_FFT[fft_bin_low_cutoff:fft_bin_high_cutoff])
                             if graph_ylim is not None:
                                 plot3.set_ylim(0,graph_ylim)
                             plot3.set_xlim(fft_bin_low_cutoff,fft_bin_high_cutoff)
@@ -447,7 +448,7 @@ class UI:
                             plot2.set_xlim(fft_bin_low_cutoff,fft_bin_high_cutoff)
 
                             if post_fft is not None:
-                                plot2.plot(x_axis[fft_bin_low_cutoff:fft_bin_high_cutoff], np.abs(post_fft[fft_bin_low_cutoff:fft_bin_high_cutoff]))
+                                plot2.plot(x_axis_fft[fft_bin_low_cutoff:fft_bin_high_cutoff], np.abs(post_fft[fft_bin_low_cutoff:fft_bin_high_cutoff]))
 
                             if options.plot_IQ_FFT and np_values_FFT is not None:
                                 plot3.clear()
@@ -458,7 +459,7 @@ class UI:
                                 if graph_ylim is not None:
                                     plot3.set_ylim(0,graph_ylim)
                                 plot3.set_xlim(fft_bin_low_cutoff,fft_bin_high_cutoff)
-                                plot3.plot(x_axis[fft_bin_low_cutoff:fft_bin_high_cutoff], np_values_FFT[fft_bin_low_cutoff:fft_bin_high_cutoff])
+                                plot3.plot(x_axis_fft[fft_bin_low_cutoff:fft_bin_high_cutoff], np_values_FFT[fft_bin_low_cutoff:fft_bin_high_cutoff])
 
                         plt.show(block=False)
                         plt.pause(0.001)
@@ -769,18 +770,18 @@ def main():
         send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x Power: ", "P"+options.power_letter)
 
     sample_count = 512
-    NFFT = 1024 
+    NFFT = 1024
     if is_doppler:
         print("Sending CW sampling rate and size:", options.power_letter)
         send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x CW Frequency: ", OPS24x_CW_Sampling_Freq10)
         sample_count = 1024
-        NFFT = 1024 
+        NFFT = 1024
         send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x CW Size: ", OPS24x_CW_Sampling_Size1024)
     else:
         print("Sending FMCW sampling rate and size:", options.power_letter)
-        send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x FMCW Frequency: ", OPS24x_FMCW_Sampling_Freq320)
+        send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x FMCW Frequency: ", 's=320')
         sample_count = 512
-        NFFT = 1024 
+        NFFT = 1024
         send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x FMCW Size: ", OPS24x_FMCW_Sampling_Size512)
 
     global hann_window
