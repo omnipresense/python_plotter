@@ -157,7 +157,7 @@ class UI:
         complex_values_I = None
         complex_values_Q = None
         complex_values_T = None
-        title = "OPS241B Signal Plotter"
+        title = "OPS241x Signal Plotter"
         global graph_ylim
         global expect_data
         global plot1
@@ -184,17 +184,22 @@ class UI:
         self.serial_port = serial_port 
 
         if is_doppler:
-            title = "OPS241A Signal Plotter"
+            title = "OPS24x Doppler Plotter"
 
         if options.plot_IQ_FFT:
             f, (plot1, plot2, plot3) = plt.subplots(3, 1)
         elif options.plot_IQ_only:
             f, (plot1) = plt.subplots(1, 1)
+            plot2 = None
+            plot3 = None
         elif options.plot_FFT:
             f, (plot1) = plt.subplots(1, 1)
             plot1.set_title("fft magnitudes")
+            plot2 = None
+            plot3 = None
         else: # I,Q,IQ and T show the signal and then the FFT calculated in python
             f, (plot1, plot2) = plt.subplots(2, 1)
+            plot3 = None
 
         # fig = plt.figure()
         # plot1 = plt.axes()
@@ -311,8 +316,8 @@ class UI:
                                 np_values_I = np_values_I - mean_I
                                 np_values_I = np_values_I * -1
                                 np_values_I = np_values_I * 16 * (3.3/4096)
-                                np_values_I = np_values_I * hann_window * 2
-                        if options.plot_Q or options.plot_IQ_and_local_FFT or options.plot_IQ_only or options.plot_IQ_FFT:
+                                np_values_I = np_values_I * hann_window
+                        if options.plot_Q or options.plot_IQ_and_local_FFT or options.plot_IQ_only  or options.plot_IQ_FFT:
                             if pobj.get('Q'):
                                 values_Q = pobj['Q']
                                 values = values_Q
@@ -321,7 +326,8 @@ class UI:
                                 mean_Q = np.mean(np_values_Q)
                                 np_values_Q = np_values_Q - mean_Q
                                 np_values_Q = np_values_Q * 16 * (3.3/4096)
-                                np_values_Q = np_values_Q * hann_window * 2
+                                np_values_Q = np_values_Q * hann_window
+
                         if options.plot_T:  # it's an array of [i,j] pairs
                             if pobj.get('T'):
                                 values_T = pobj['T']
@@ -333,6 +339,7 @@ class UI:
                                 values = pobj['FFT']
                                 np_values_FFT = np.array(values)
                                 #print(values[:5])
+                        #  should it be elif or a new if.  should it be plot_foo, not show_ranges?
                         elif options.show_ranges:
                             if pobj.get('Range_Data'):
                                 values = pobj['Range_Data']
@@ -484,7 +491,6 @@ class UI:
                         timeout=1,
                         writeTimeout=2
                     )
-                    serial_port.port = 'COM5'
                     for x in range(10, 0, -1):
                         print(str(x) + ' seconds remaining to reconnect')
                         time.sleep(1)
@@ -500,7 +506,7 @@ class UI:
                         else:
                             send_OPS24x_cmd(serial_port, "\nSet no FFT data: ", OPS24x_Output_No_FFT)
 
-                        if options.plot_I or options.plot_Q or options.plot_IQ or options.plot_IQ_only or options.plot_IQ_FFT:
+                        if options.plot_I or options.plot_Q or options.plot_IQ_and_local_FFT or options.plot_IQ_only or options.plot_IQ_FFT:
                             send_OPS24x_cmd(serial_port, "\nSet yes Raw data: ", OPS24x_Output_Raw)
                         else:
                             send_OPS24x_cmd(serial_port, "\nSet no Raw data: ", OPS24x_Output_No_Raw)
@@ -754,14 +760,15 @@ def main():
     print("\nInitializing Ops24x Module")
     rtn_val = send_OPS24x_cmd(serial_OPS24x, "\nSet no binary data: ", OPS24x_Output_No_Binary_data)
     rtn_val = send_OPS24x_cmd(serial_OPS24x, "\nQuery for Product: ", OPS24x_Query_Product, "Product")
-    if rtn_val.find("Doppler") >= 0 or options.is_doppler:
+    if rtn_val.find("Doppler") >= 0 or rtn_val.find("ombo") >= 0 or options.is_doppler:
         is_doppler = True
     else:
         is_doppler = False
 
     send_OPS24x_cmd(serial_OPS24x, "\nSet yes Magnitude: ", OPS24x_Output_Magnitude)
     send_OPS24x_cmd(serial_OPS24x, "\nSet Power Active Mode: ", OPS24x_Power_Active)
-
+    send_OPS24x_cmd(serial_OPS24x, "\nSet No Speed report: ", OPS24x_Output_No_Speed)
+    send_OPS24x_cmd(serial_OPS24x, "\nSet No Distance report: ", OPS24x_Output_No_Distance)
     if options.wait_letter != ' ':
         print("Sending wait argument:",options.wait_letter)
         send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x Wait ?: ", "W"+options.wait_letter)
@@ -774,9 +781,9 @@ def main():
     if is_doppler:
         print("Sending CW sampling rate and size:", options.power_letter)
         send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x CW Frequency: ", OPS24x_CW_Sampling_Freq10)
-        sample_count = 1024
+        sample_count = 512
         NFFT = 1024
-        send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x CW Size: ", OPS24x_CW_Sampling_Size1024)
+        send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x CW Size: ", OPS24x_CW_Sampling_Size512)
     else:
         print("Sending FMCW sampling rate and size:", options.power_letter)
         send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x FMCW Frequency: ", 's=320')
