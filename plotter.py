@@ -123,7 +123,7 @@ def send_OPS24x_cmd(serial_port, console_msg_prefix, ops24x_command, match_crite
         print("Connection Error (Write)")
 
 fft_bin_low_cutoff = 0
-fft_bin_high_cutoff = 256
+fft_bin_high_cutoff = 400
 graph_ylim = None
 expect_data = True
 data_available = threading.Event()
@@ -180,6 +180,8 @@ class UI:
         global chk_pulse
         global chk_chart
         global chk_bin
+        global do_voltage_convert
+        global signal_multiply
 
         self.serial_port = serial_port 
 
@@ -315,7 +317,10 @@ class UI:
                                 mean_I = np.mean(np_values_I)
                                 np_values_I = np_values_I - mean_I
                                 np_values_I = np_values_I * -1
-                                np_values_I = np_values_I * 16 * (3.3/4096)
+                                if options.do_voltage_convert:
+                                    np_values_I = np_values_I * (3.3/4096)
+                                if options.signal_multiply > 1:
+                                    np_values_I = np_values_I * options.signal_multiply
                                 np_values_I = np_values_I * hann_window
                         if options.plot_Q or options.plot_IQ_and_local_FFT or options.plot_IQ_only  or options.plot_IQ_FFT:
                             if pobj.get('Q'):
@@ -325,7 +330,10 @@ class UI:
                                 np_values_Q = np_values
                                 mean_Q = np.mean(np_values_Q)
                                 np_values_Q = np_values_Q - mean_Q
-                                np_values_Q = np_values_Q * 16 * (3.3/4096)
+                                if options.do_voltage_convert:
+                                    np_values_Q = np_values_Q * (3.3/4096)
+                                if options.signal_multiply > 1:
+                                    np_values_Q = np_values_Q * options.signal_multiply
                                 np_values_Q = np_values_Q * hann_window
 
                         if options.plot_T:  # it's an array of [i,j] pairs
@@ -663,7 +671,7 @@ def main():
     parser.add_option("-p", "--port", dest="port_name",
                       help="read data from PORTNAME")
     parser.add_option("-b", "--baud", dest="baudrate",
-                      default="115200",
+                      type="int", default="115200",
                       help="baud rate on serial port")
     parser.add_option("-W", "--wait_letter", dest="wait_letter",
                       default=" ",
@@ -713,6 +721,16 @@ def main():
                       action="store_false",
                       dest="is_doppler",
                       default=True)
+    parser.add_option("--Sv", "--no-signal-voltage-convert",
+                       action="store_false",
+                       dest="do_voltage_convert")
+    parser.add_option("--SV", "--signal-voltage-convert",
+                       action="store_true",
+                       dest="do_voltage_convert",
+                       default=True)
+    parser.add_option("--SX", dest="signal_multiply",
+                      type="int", default="1",
+                      help="multiplication factor to apply to signal")
 
     (options, args) = parser.parse_args()
     if options.plot_I is None and options.plot_Q is None \
