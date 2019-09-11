@@ -113,9 +113,12 @@ def send_OPS24x_cmd(serial_port, console_msg_prefix, ops24x_command, match_crite
             data_rx_length = len(data_rx_bytes)
             if data_rx_length != 0:
                 data_rx_str = str(data_rx_bytes)
-                if data_rx_str.find(match_criteria):
-                    # print(data_rx_str)
+                if data_rx_str.find(match_criteria) >= 0:
                     ser_write_verify = True
+                    # print("match:{0} while looking for {1}".format(data_rx_str,match_criteria))
+                else:
+                    ser_write_verify = False
+                    # print("mismatch:{0} while looking for {1}".format(data_rx_str,match_criteria))
         return data_rx_str
     except serial.serialutil.SerialTimeoutException:
         print("Write timeout sending command:",ops24x_command)
@@ -316,7 +319,8 @@ class UI:
                                  #pdb.set_trace()
                                 mean_I = np.mean(np_values_I)
                                 np_values_I = np_values_I - mean_I
-                                np_values_I = np_values_I * -1
+                                if invert_i_values:
+                                    np_values_I = np_values_I * -1
                                 if options.do_voltage_convert:
                                     np_values_I = np_values_I * (3.3/4096)
                                 if options.signal_multiply > 1:
@@ -487,6 +491,7 @@ class UI:
                     print("ERROR-end: Resuming.")
                 except (ValueError, AttributeError) as err:
                     print("error in values/computation. toss and continue. details: {0}".format(err))
+                    # print(data_rx_str)
                     values = None
                 except serial.serialutil.SerialException:
                     print("Connection Error")
@@ -718,9 +723,9 @@ def main():
                       dest="is_doppler",
                       default=False)
     parser.add_option("--FMCW",
-                      action="store_false",
-                      dest="is_doppler",
-                      default=True)
+                      action="store_true",
+                      dest="is_fmcw",
+                      default=False)
     parser.add_option("--Sv", "--no-signal-voltage-convert",
                        action="store_false",
                        dest="do_voltage_convert")
@@ -741,7 +746,12 @@ def main():
             and options.plot_IQ_FFT is None:
         options.plot_IQ_FFT = True
 
+    global is_OPS241_OPS242_A
+    global is_OPS241_OPS242_B
+    global is_OPS243_A
+    global is_OPS243_C
     global is_doppler
+    global invert_i_values
     global sample_count
     global NFFT
     global serial_OPS24x
@@ -776,23 +786,51 @@ def main():
     # Initialize and query Ops24x Module
 
     print("\nInitializing Ops24x Module")
-    rtn_val = send_OPS24x_cmd(serial_OPS24x, "\nSet no binary data: ", OPS24x_Output_No_Binary_data)
+
+    send_OPS24x_cmd(serial_OPS24x, "\nSet Power Idle Mode: ", OPS24x_Power_Idle)
+
+    is_OPS241_OPS242_A = False
+    is_OPS241_OPS242_B = False
+    is_OPS243_A = False
+    is_OPS243_C = False
     rtn_val = send_OPS24x_cmd(serial_OPS24x, "\nQuery for Product: ", OPS24x_Query_Product, "Product")
-    if rtn_val.find("Doppler") >= 0 or rtn_val.find("ombo") >= 0 or options.is_doppler:
-        is_doppler = True
+    if rtn_val.find("243") >= 0:
+        if rtn_val.find("oppler") >= 0:
+            is_OPS243_A = True
+        elif rtn_val.find("ombo") >= 0:
+            is_OPS243_C = True
     else:
+        if rtn_val.find("oppler") >= 0:
+            is_OPS241_OPS242_A = True
+        elif rtn_val.find("FMCW") >= 0:
+            is_OPS241_OPS242_B = True
+
+    is_doppler = False
+    if options.is_doppler:
+        is_doppler = True
+    elif options.is_fmcw:
         is_doppler = False
+    else:
+        if is_OPS241_OPS242_A or is_OPS243_A:
+            is_doppler = True
+        else:
+            is_doppler = False
+
+    invert_i_values = False
+    if is_OPS241_OPS242_A or is_OPS241_OPS242_B:
+        invert_i_values = True
+
+    if is_OPS241_OPS242_A or is_OPS243_A:
+        send_OPS24x_cmd(serial_OPS24x, "\nSet no binary data: ", OPS24x_Output_No_Binary_data)
+
+    if is_doppler:
+        send_OPS24x_cmd(serial_OPS24x, "\nSet Send Speed report: ", OPS24x_Output_Speed)
+        send_OPS24x_cmd(serial_OPS24x, "\nSet No Distance report: ", OPS24x_Output_No_Distance)
+    else:
+        send_OPS24x_cmd(serial_OPS24x, "\nSet No Speed report: ", OPS24x_Output_No_Speed)
+        send_OPS24x_cmd(serial_OPS24x, "\nSet Send Distance report: ", OPS24x_Output_Distance)
 
     send_OPS24x_cmd(serial_OPS24x, "\nSet yes Magnitude: ", OPS24x_Output_Magnitude)
-    send_OPS24x_cmd(serial_OPS24x, "\nSet Power Active Mode: ", OPS24x_Power_Active)
-    send_OPS24x_cmd(serial_OPS24x, "\nSet No Speed report: ", OPS24x_Output_No_Speed)
-    send_OPS24x_cmd(serial_OPS24x, "\nSet No Distance report: ", OPS24x_Output_No_Distance)
-    if options.wait_letter != ' ':
-        print("Sending wait argument:",options.wait_letter)
-        send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x Wait ?: ", "W"+options.wait_letter)
-    if options.power_letter != ' ':
-        print("Sending power argument:",options.power_letter)
-        send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x Power: ", "P"+options.power_letter)
 
     sample_count = 512
     NFFT = 1024
@@ -800,7 +838,7 @@ def main():
         print("Sending CW sampling rate and size:", options.power_letter)
         send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x CW Frequency: ", OPS24x_CW_Sampling_Freq10)
         sample_count = 512
-        NFFT = 1024
+        NFFT = 512
         send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x CW Size: ", OPS24x_CW_Sampling_Size512)
     else:
         print("Sending FMCW sampling rate and size:", options.power_letter)
@@ -834,6 +872,16 @@ def main():
         send_OPS24x_cmd(serial_OPS24x, "\nSet yes Time Domain data: ", OPS24x_Output_TimeSignal)
     else:
         send_OPS24x_cmd(serial_OPS24x, "\nSet no Time Domain data: ", OPS24x_Output_No_TimeSignal)
+
+    if options.wait_letter != ' ':
+        print("Sending wait argument:",options.wait_letter)
+        send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x Wait ?: ", "W"+options.wait_letter)
+
+    if options.power_letter != ' ':
+        print("Sending power argument:",options.power_letter)
+        send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x Power: ", "P"+options.power_letter)
+
+    send_OPS24x_cmd(serial_OPS24x, "\nSet Power Active Mode: ", OPS24x_Power_Active)
 
     # do the work
     ui = UI()
