@@ -42,24 +42,30 @@ import matplotlib.pyplot as plt
 #####################################################
 # Modifiable parameters
  
-
 # OPS24x module setting initialization constants
 
-OPS24x_CW_Sampling_Freq10 = 'SX'      # 10Ksps
+OPS24x_CW_Sampling_Freq10 = 'S=10'    # 10Ksps
+OPS24x_CW_Sampling_Freq20 = 'S=20'    # 20Ksps
 
+OPS24x_CW_Sampling_Size128 = 'S('     # 128 data size
 OPS24x_CW_Sampling_Size256 = 'S['     # 256 data size
 OPS24x_CW_Sampling_Size512 = 'S<'     # 512 data size
 OPS24x_CW_Sampling_Size1024 = 'S>'    # 1024 data size
-OPS24x_CW_Sampling_Size2048 = 'S*'    # 2048 data size
 
-OPS24x_FMCW_Sampling_Freq100 = 's=100' # 100Ksps
-OPS24x_FMCW_Sampling_Freq320 = 's=320' # 320Ksps
-OPS24x_FMCW_Sampling_Freq600 = 's=600' # 600Ksps
-
+OPS24x_FMCW_Sampling_Size128 = 's('   # 128 data size
 OPS24x_FMCW_Sampling_Size256 = 's['   # 256 data size
 OPS24x_FMCW_Sampling_Size512 = 's<'   # 512 data size
 OPS24x_FMCW_Sampling_Size1024 = 's>'  # 1024 data size
-OPS24x_FMCW_Sampling_Size2048 = 's*'  # 2048 data size
+
+OPS24x_CW_FFT_Scale1 = 'X1'           # FFT size = 1x data size
+OPS24x_CW_FFT_Scale2 = 'X2'           # FFT size = 2x data size
+OPS24x_CW_FFT_Scale4 = 'X4'           # FFT size = 4x data size
+OPS24x_CW_FFT_Scale8 = 'X8'           # FFT size = 8x data size
+
+OPS24x_FMCW_FFT_Scale1 = 'x1'         # FFT size = 1x data size
+OPS24x_FMCW_FFT_Scale2 = 'x2'         # FFT size = 2x data size
+OPS24x_FMCW_FFT_Scale4 = 'x4'         # FFT size = 4x data size
+OPS24x_FMCW_FFT_Scale8 = 'x8'         # FFT size = 8x data size
 
 OPS24x_Blanks_Send_Zeros = 'BZ'
 OPS24x_Blanks_Send_Void = 'BV'
@@ -82,18 +88,24 @@ OPS24x_Output_Speed = 'OS'           # send speed value
 OPS24x_Output_No_Speed = 'Os'        # don't send speed value
 OPS24x_Output_Distance = 'OD'        # send distance values
 OPS24x_Output_No_Distance = 'Od'     # don't send distance values
-OPS24x_Output_Magnitude = 'OM'       # send magnitude values
-OPS24x_Output_No_Magnitude = 'Om'    # don't send magnitude values
-OPS24x_Output_Raw = 'OR'             # send raw data for distance
-OPS24x_Output_No_Raw = 'Or'          # don't send raw data for distance
-OPS24x_Output_FFT = 'OF'             # send fft data for distance
-OPS24x_Output_No_FFT = 'Of'          # don't send fft data for distance
-OPS24x_Output_TimeSignal = 'OT'      # send timedomain signal
-OPS24x_Output_No_TimeSignal = 'Ot'   # don't send timedomain signal
 OPS24x_Output_JSONy_data = 'OJ'      # send JSON formatted data
 OPS24x_Output_No_JSONy_data = 'Oj'   # don't send JSON formatted data
+
 OPS24x_Output_No_Binary_data = 'Ob'  # don't use binary mode
 
+OPS24x_Output_CW_Raw = 'OR'          # send CW raw data
+OPS24x_Output_No_CW_Raw = 'Or'       # don't send CW raw data
+OPS24x_Output_CW_FFT = 'OF'          # send CW FFT data
+OPS24x_Output_No_CW_FFT = 'Of'       # don't send CW FFT data
+OPS24x_Output_FMCW_Raw = 'oR'        # send FMCW raw data
+OPS24x_Output_No_FMCW_Raw = 'or'     # don't send FMCW raw data
+OPS24x_Output_FMCW_FFT = 'oF'        # send FMCW FFT data
+OPS24x_Output_No_FMCW_FFT = 'of'     # don't send FMCW FFT data
+
+OPS24x_Output_CW_Mag = 'OM'          # send CW magnitudes
+OPS24x_Output_No_CW_Mag = 'Om'       # send no CW magnitudes
+OPS24x_Output_FMCW_Mag = 'oM'        # send FMCW magnitudes
+OPS24x_Output_No_FMCW_Mag = 'om'     # send no FMCW magnitudes
 
 # send_OPS24x_cmd: function for sending commands to the OPS-24x module
 # console_msg_prefix is used only for printing out to console.
@@ -115,10 +127,10 @@ def send_OPS24x_cmd(serial_port, console_msg_prefix, ops24x_command, match_crite
                 data_rx_str = str(data_rx_bytes)
                 if data_rx_str.find(match_criteria) >= 0:
                     ser_write_verify = True
-                    # print("match:{0} while looking for {1}".format(data_rx_str,match_criteria))
+                    #print("match:{0} while looking for {1}".format(data_rx_str,match_criteria))  #
                 else:
                     ser_write_verify = False
-                    # print("mismatch:{0} while looking for {1}".format(data_rx_str,match_criteria))
+                    #print("mismatch:{0} while looking for {1}".format(data_rx_str,match_criteria))  #
         return data_rx_str
     except serial.serialutil.SerialTimeoutException:
         print("Write timeout sending command:",ops24x_command)
@@ -143,6 +155,145 @@ def read(serial_port):
 class UI:
 
     serial_port = None
+
+    def init(self, serial_port):
+        global is_OPS241_OPS242_A
+        global is_OPS241_OPS242_B
+        global is_OPS243_A
+        global is_OPS243_C
+        global is_doppler
+        global invert_i_values
+        global sample_count
+        global NFFT
+
+        self.serial_port = serial_port 
+
+        # Initialize and query Ops24x Module
+
+        print("\nInitializing Ops24x Module")
+
+        send_OPS24x_cmd(serial_port, "\nSet Power Idle Mode: ", OPS24x_Power_Idle)
+
+        is_OPS241_OPS242_A = False
+        is_OPS241_OPS242_B = False
+        is_OPS243_A = False
+        is_OPS243_C = False
+        rtn_val = send_OPS24x_cmd(serial_port, "\nQuery for Product: ", OPS24x_Query_Product, "Product")
+        if rtn_val.find("243") >= 0:
+            if rtn_val.find("oppler") >= 0:
+                is_OPS243_A = True
+            elif rtn_val.find("ombo") >= 0:
+                is_OPS243_C = True
+        else:
+            if rtn_val.find("oppler") >= 0:
+                is_OPS241_OPS242_A = True
+            elif rtn_val.find("FMCW") >= 0:
+                is_OPS241_OPS242_B = True
+
+        is_doppler = False
+        if options.is_doppler:
+            is_doppler = True
+        elif options.is_fmcw:
+            is_doppler = False
+        else:
+            if is_OPS241_OPS242_A or is_OPS243_A:
+                is_doppler = True
+            else:
+                is_doppler = False
+
+        invert_i_values = False
+        if is_OPS241_OPS242_A or is_OPS241_OPS242_B:
+            invert_i_values = True
+
+        if is_OPS241_OPS242_A or is_OPS243_A:
+            send_OPS24x_cmd(serial_port, "\nSet no binary data: ", OPS24x_Output_No_Binary_data)
+
+        if is_doppler:
+            send_OPS24x_cmd(serial_port, "\nSet Send Speed report: ", OPS24x_Output_Speed)
+            send_OPS24x_cmd(serial_port, "\nSet No Distance report: ", OPS24x_Output_No_Distance)
+        else:
+            send_OPS24x_cmd(serial_port, "\nSet No Speed report: ", OPS24x_Output_No_Speed)
+            send_OPS24x_cmd(serial_port, "\nSet Send Distance report: ", OPS24x_Output_Distance)
+
+        if is_OPS243_C:
+            if is_doppler:
+                send_OPS24x_cmd(serial_port, "\nSet yes CW Magnitudes: ", OPS24x_Output_CW_Mag)
+            else:
+                send_OPS24x_cmd(serial_port, "\nSet yes FMCW Magnitudes: ", OPS24x_Output_FMCW_Mag)
+        else:
+            send_OPS24x_cmd(serial_port, "\nSet yes Magnitudes: ", OPS24x_Output_CW_Mag)
+
+        sample_count = 512
+        NFFT = 1024
+        if is_doppler:
+            print("Sending CW sampling rate and size:", options.power_letter)
+            send_OPS24x_cmd(serial_port, "\nSet OPS24x CW Frequency: ", OPS24x_CW_Sampling_Freq10)
+            sample_count = 512
+            NFFT = 512
+            send_OPS24x_cmd(serial_port, "\nSet OPS24x CW Data Size: ", OPS24x_CW_Sampling_Size512)
+            if is_OPS243_C:
+                send_OPS24x_cmd(serial_port, "\nSet OPS24x CW FFT Scale: ", OPS24x_CW_FFT_Scale1)
+        else:
+            print("Sending FMCW sampling rate and size:", options.power_letter)
+            send_OPS24x_cmd(serial_port, "\nSet OPS24x FMCW Frequency: ", 's=320')
+            sample_count = 512
+            NFFT = 1024
+            send_OPS24x_cmd(serial_port, "\nSet OPS24x FMCW Data Size: ", OPS24x_FMCW_Sampling_Size512)
+            if is_OPS243_C:
+                send_OPS24x_cmd(serial_port, "\nSet OPS24x FMCW FFT Scale: ", OPS24x_FMCW_FFT_Scale2)
+
+        global hann_window
+        global blackman_window
+        hann_window = np.hanning(sample_count)
+        blackman_window = np.blackman(sample_count)
+
+        if options.low_cutoff != ' ':
+            print("Low cutoff:",options.low_cutoff)
+            fft_bin_low_cutoff = int(options.low_cutoff)
+
+        send_OPS24x_cmd(serial_port, "\nSet yes JSONy data: ", OPS24x_Output_JSONy_data, "utputFeature")
+
+        if options.plot_I or options.plot_Q or options.plot_IQ_and_local_FFT or options.plot_IQ_only or options.plot_IQ_FFT:
+            if is_doppler:
+                send_OPS24x_cmd(serial_port, "\nSet yes CW Raw data: ", OPS24x_Output_CW_Raw)
+                if is_OPS243_C:
+                    send_OPS24x_cmd(serial_port, "\nSet no FMCW Raw data: ", OPS24x_Output_No_FMCW_Raw)
+            else:
+                if is_OPS243_C:
+                    send_OPS24x_cmd(serial_port, "\nSet yes FMCW Raw data: ", OPS24x_Output_FMCW_Raw)
+                    send_OPS24x_cmd(serial_port, "\nSet no CW Raw data: ", OPS24x_Output_No_CW_Raw)
+                else:
+                    send_OPS24x_cmd(serial_port, "\nSet yes FMCW Raw data: ", OPS24x_Output_CW_Raw)
+        else:
+            send_OPS24x_cmd(serial_port, "\nSet no CW Raw data: ", OPS24x_Output_No_CW_Raw)
+            if is_OPS243_C:
+                send_OPS24x_cmd(serial_port, "\nSet no FMCW Raw data: ", OPS24x_Output_No_FMCW_Raw)
+
+        if options.plot_FFT or options.plot_IQ_FFT:
+            if is_doppler:
+                send_OPS24x_cmd(serial_port, "\nSet yes CW FFT data: ", OPS24x_Output_CW_FFT)
+                if is_OPS243_C:
+                    send_OPS24x_cmd(serial_port, "\nSet no FMCW FFT data: ", OPS24x_Output_No_FMCW_FFT)
+            else:
+                if is_OPS243_C:
+                    send_OPS24x_cmd(serial_port, "\nSet yes FMCW FFT data: ", OPS24x_Output_FMCW_FFT)
+                    send_OPS24x_cmd(serial_port, "\nSet no CW FFT data: ", OPS24x_Output_No_CW_FFT)
+                else:
+                    send_OPS24x_cmd(serial_port, "\nSet yes FMCW FFT data: ", OPS24x_Output_CW_FFT)
+        else:
+            send_OPS24x_cmd(serial_port, "\nSet no CW FFT data: ", OPS24x_Output_No_CW_FFT)
+            if is_OPS243_C:
+                send_OPS24x_cmd(serial_port, "\nSet no FMCW FFT data: ", OPS24x_Output_No_FMCW_FFT)
+
+        if options.wait_letter != ' ':
+            print("Sending wait argument:",options.wait_letter)
+            send_OPS24x_cmd(serial_port, "\nSet OPS24x Wait ?: ", "W"+options.wait_letter)
+
+        if options.power_letter != ' ':
+            print("Sending power argument:",options.power_letter)
+            send_OPS24x_cmd(serial_port, "\nSet OPS24x Power: ", "P"+options.power_letter)
+
+        send_OPS24x_cmd(serial_port, "\nSet Power Active Mode: ", OPS24x_Power_Active, "PowerMode")
 
     def read_plot_loop(self, serial_port, options):
         post_fft = None
@@ -340,13 +491,7 @@ class UI:
                                     np_values_Q = np_values_Q * options.signal_multiply
                                 np_values_Q = np_values_Q * hann_window
 
-                        if options.plot_T:  # it's an array of [i,j] pairs
-                            if pobj.get('T'):
-                                values_T = pobj['T']
-                                values = values_T
-                                np_values = np.array(values_T)
-                                np_values_T = np_values / 1000000
-                        elif options.plot_FFT or options.plot_IQ_FFT:
+                        if options.plot_FFT or options.plot_IQ_FFT:
                             if pobj.get('FFT'):
                                 values = pobj['FFT']
                                 np_values_FFT = np.array(values)
@@ -396,9 +541,6 @@ class UI:
                             if np_values_Q is not None:
                                 plot1.plot(x_axis_raw, values_Q)
                                 legend_arr.append("Q")
-                        if options.plot_T:
-                            plot1.plot(x_axis_raw, np_values_T)
-                            legend_arr.append("signal")
 
                         plot1.set_title("raw signal", loc='left')
                         plot1.set_xlabel('Samples')
@@ -448,11 +590,6 @@ class UI:
                             elif options.plot_Q:
                                 if np_values_Q is not None:
                                     post_fft = np.fft.rfft(np_values_Q, NFFT)
-                            elif options.plot_T: # handles OT (or maybe if options.plot_IQ_FFT returns this style
-                                if np_values_T is not None:
-                                    if isinstance(np_values_T[0], (np.ndarray, np.generic)):
-                                        complex_values_T = [complex(x[0], x[1]) for x in np_values_T]
-                                        post_fft = np.fft.fft(complex_values_T, NFFT)
                             else:
                                 if np_values is not None:
                                     post_fft = np.fft.rfft(np_values, NFFT)
@@ -487,11 +624,11 @@ class UI:
                     print("ERROR: Prior line failed to decode. Continuing.")
                 except json.decoder.JSONDecodeError:
                     print("ERROR: Prior line failed to parse. Continuing.")
-                    # print(data_rx_str)
+                    #print(data_rx_str)  #
                     print("ERROR-end: Resuming.")
                 except (ValueError, AttributeError) as err:
                     print("error in values/computation. toss and continue. details: {0}".format(err))
-                    # print(data_rx_str)
+                    #print(data_rx_str)  #
                     values = None
                 except serial.serialutil.SerialException:
                     print("Connection Error")
@@ -514,17 +651,9 @@ class UI:
                             pass
 
                     if serial_port.is_open:
-                        if options.plot_FFT or options.plot_IQ_FFT:
-                            send_OPS24x_cmd(serial_port, "\nSet yes FFT data: ", OPS24x_Output_FFT)
-                        else:
-                            send_OPS24x_cmd(serial_port, "\nSet no FFT data: ", OPS24x_Output_No_FFT)
-
-                        if options.plot_I or options.plot_Q or options.plot_IQ_and_local_FFT or options.plot_IQ_only or options.plot_IQ_FFT:
-                            send_OPS24x_cmd(serial_port, "\nSet yes Raw data: ", OPS24x_Output_Raw)
-                        else:
-                            send_OPS24x_cmd(serial_port, "\nSet no Raw data: ", OPS24x_Output_No_Raw)
-                    # except (portNotOpenError):
-                    #     print('Port has not reopened')
+                        self.init(serial_port)
+                # except (portNotOpenError):
+                #     print('Port has not reopened')
                 # except:  # catch *all* exceptions
                 #     e = sys.exc_info()[0]
                 #     print(e)
@@ -671,6 +800,8 @@ class UI:
 
 def main():
     global fft_bin_low_cutoff
+    global options
+
     usage = "usage: %prog [options] arg"
     parser = OptionParser(usage)
     parser.add_option("-p", "--port", dest="port_name",
@@ -702,9 +833,6 @@ def main():
     parser.add_option("-2", "--plot_IQ",
                        action="store_true",
                        dest="plot_IQ_and_local_FFT")
-    parser.add_option("-T", "--plot_T",
-                       action="store_true",
-                       dest="plot_T")
     parser.add_option("-F", "--plot_FFT",
                        action="store_true",
                        dest="plot_FFT")
@@ -739,22 +867,11 @@ def main():
 
     (options, args) = parser.parse_args()
     if options.plot_I is None and options.plot_Q is None \
-            and options.plot_T is None \
             and options.plot_FFT is None \
             and options.plot_IQ_and_local_FFT is None \
             and options.plot_IQ_only is None \
             and options.plot_IQ_FFT is None:
         options.plot_IQ_FFT = True
-
-    global is_OPS241_OPS242_A
-    global is_OPS241_OPS242_B
-    global is_OPS243_A
-    global is_OPS243_C
-    global is_doppler
-    global invert_i_values
-    global sample_count
-    global NFFT
-    global serial_OPS24x
 
     # Initialize the USB port to read from the OPS-24x module
     serial_OPS24x = serial.Serial(
@@ -783,122 +900,26 @@ def main():
     serial_OPS24x.flushOutput()
     serial_OPS24x.flushInput()
 
-    # Initialize and query Ops24x Module
-
-    print("\nInitializing Ops24x Module")
-
-    send_OPS24x_cmd(serial_OPS24x, "\nSet Power Idle Mode: ", OPS24x_Power_Idle)
-
-    is_OPS241_OPS242_A = False
-    is_OPS241_OPS242_B = False
-    is_OPS243_A = False
-    is_OPS243_C = False
-    rtn_val = send_OPS24x_cmd(serial_OPS24x, "\nQuery for Product: ", OPS24x_Query_Product, "Product")
-    if rtn_val.find("243") >= 0:
-        if rtn_val.find("oppler") >= 0:
-            is_OPS243_A = True
-        elif rtn_val.find("ombo") >= 0:
-            is_OPS243_C = True
-    else:
-        if rtn_val.find("oppler") >= 0:
-            is_OPS241_OPS242_A = True
-        elif rtn_val.find("FMCW") >= 0:
-            is_OPS241_OPS242_B = True
-
-    is_doppler = False
-    if options.is_doppler:
-        is_doppler = True
-    elif options.is_fmcw:
-        is_doppler = False
-    else:
-        if is_OPS241_OPS242_A or is_OPS243_A:
-            is_doppler = True
-        else:
-            is_doppler = False
-
-    invert_i_values = False
-    if is_OPS241_OPS242_A or is_OPS241_OPS242_B:
-        invert_i_values = True
-
-    if is_OPS241_OPS242_A or is_OPS243_A:
-        send_OPS24x_cmd(serial_OPS24x, "\nSet no binary data: ", OPS24x_Output_No_Binary_data)
-
-    if is_doppler:
-        send_OPS24x_cmd(serial_OPS24x, "\nSet Send Speed report: ", OPS24x_Output_Speed)
-        send_OPS24x_cmd(serial_OPS24x, "\nSet No Distance report: ", OPS24x_Output_No_Distance)
-    else:
-        send_OPS24x_cmd(serial_OPS24x, "\nSet No Speed report: ", OPS24x_Output_No_Speed)
-        send_OPS24x_cmd(serial_OPS24x, "\nSet Send Distance report: ", OPS24x_Output_Distance)
-
-    send_OPS24x_cmd(serial_OPS24x, "\nSet yes Magnitude: ", OPS24x_Output_Magnitude)
-
-    sample_count = 512
-    NFFT = 1024
-    if is_doppler:
-        print("Sending CW sampling rate and size:", options.power_letter)
-        send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x CW Frequency: ", OPS24x_CW_Sampling_Freq10)
-        sample_count = 512
-        NFFT = 512
-        send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x CW Size: ", OPS24x_CW_Sampling_Size512)
-    else:
-        print("Sending FMCW sampling rate and size:", options.power_letter)
-        send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x FMCW Frequency: ", 's=320')
-        sample_count = 512
-        NFFT = 1024
-        send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x FMCW Size: ", OPS24x_FMCW_Sampling_Size512)
-
-    global hann_window
-    global blackman_window
-    hann_window = np.hanning(sample_count)
-    blackman_window = np.blackman(sample_count)
-
-    if options.low_cutoff != ' ':
-        print("Low cutoff:",options.low_cutoff)
-        fft_bin_low_cutoff = int(options.low_cutoff)
-
-    send_OPS24x_cmd(serial_OPS24x, "\nSet yes JSONy data: ", OPS24x_Output_JSONy_data)
-
-    if options.plot_I or options.plot_Q or options.plot_IQ_and_local_FFT or options.plot_IQ_only or options.plot_IQ_FFT:
-        send_OPS24x_cmd(serial_OPS24x, "\nSet yes Raw data: ", OPS24x_Output_Raw)
-    else:
-        send_OPS24x_cmd(serial_OPS24x, "\nSet no Raw data: ", OPS24x_Output_No_Raw)
-
-    if options.plot_FFT or options.plot_IQ_FFT:
-        send_OPS24x_cmd(serial_OPS24x, "\nSet yes FFT data: ", OPS24x_Output_FFT)
-    else:
-        send_OPS24x_cmd(serial_OPS24x, "\nSet no FFT data: ", OPS24x_Output_No_FFT)
-
-    if options.plot_T:
-        send_OPS24x_cmd(serial_OPS24x, "\nSet yes Time Domain data: ", OPS24x_Output_TimeSignal)
-    else:
-        send_OPS24x_cmd(serial_OPS24x, "\nSet no Time Domain data: ", OPS24x_Output_No_TimeSignal)
-
-    if options.wait_letter != ' ':
-        print("Sending wait argument:",options.wait_letter)
-        send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x Wait ?: ", "W"+options.wait_letter)
-
-    if options.power_letter != ' ':
-        print("Sending power argument:",options.power_letter)
-        send_OPS24x_cmd(serial_OPS24x, "\nSet OPS24x Power: ", "P"+options.power_letter)
-
-    send_OPS24x_cmd(serial_OPS24x, "\nSet Power Active Mode: ", OPS24x_Power_Active)
-
     # do the work
     ui = UI()
+    ui.init(serial_OPS24x)
     ui.read_plot_loop(serial_OPS24x, options)
 
     # turn off all that we might have turned on
     quit(serial_OPS24x)
 
-
 def quit(serial_port):
     if serial_port.isOpen() == True:
         serial_port.write(0x03)  # send a break code
-        send_OPS24x_cmd(serial_port, "\nSet no Magnitude: ", OPS24x_Output_No_Magnitude)
+        send_OPS24x_cmd(serial_port, "\nSet no CW Raw data: ", OPS24x_Output_No_CW_Raw)
+        send_OPS24x_cmd(serial_port, "\nSet no CW FFT data: ", OPS24x_Output_No_CW_FFT)
+        if is_OPS243_C:
+            send_OPS24x_cmd(serial_port, "\nSet no FMCW Raw data: ", OPS24x_Output_No_FMCW_Raw)
+            send_OPS24x_cmd(serial_port, "\nSet no FMCW FFT data: ", OPS24x_Output_No_FMCW_FFT)
         send_OPS24x_cmd(serial_port, "\nSet no JSONy data: ", OPS24x_Output_No_JSONy_data)
-        send_OPS24x_cmd(serial_port, "\nSet no Raw data: ", OPS24x_Output_No_Raw)
-        send_OPS24x_cmd(serial_port, "\nSet no FFT data: ", OPS24x_Output_No_FFT)
-        send_OPS24x_cmd(serial_port, "\nSet no Time Domain data: ", OPS24x_Output_No_TimeSignal)
+        send_OPS24x_cmd(serial_port, "\nSet no CW Magnitudes: ", OPS24x_Output_No_CW_Mag)
+        if is_OPS243_C:
+            send_OPS24x_cmd(serial_port, "\nSet no FMCW Magnitudes: ", OPS24x_Output_No_FMCW_Mag)
         serial_port.close()
 
     print('quiting')
