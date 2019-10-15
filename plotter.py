@@ -44,8 +44,8 @@ import matplotlib.pyplot as plt
  
 # OPS24x module setting initialization constants
 
-OPS24x_CW_Sampling_Freq10 = 'S=10'    # 10Ksps
-OPS24x_CW_Sampling_Freq20 = 'S=20'    # 20Ksps
+OPS24x_CW_Sampling_Freq10 = 'S1'      # 10Ksps
+OPS24x_CW_Sampling_Freq20 = 'S2'      # 20Ksps
 
 OPS24x_CW_Sampling_Size128 = 'S('     # 128 data size
 OPS24x_CW_Sampling_Size256 = 'S['     # 256 data size
@@ -210,15 +210,15 @@ class UI:
 
         if is_doppler:
             send_OPS24x_cmd(serial_port, "\nSet Send Speed report: ", OPS24x_Output_Speed)
-            send_OPS24x_cmd(serial_port, "\nSet No Distance report: ", OPS24x_Output_No_Distance)
         else:
             send_OPS24x_cmd(serial_port, "\nSet No Speed report: ", OPS24x_Output_No_Speed)
-            send_OPS24x_cmd(serial_port, "\nSet Send Distance report: ", OPS24x_Output_Distance)
 
         if is_OPS243_C:
             if is_doppler:
+                send_OPS24x_cmd(serial_port, "\nSet No Distance report: ", OPS24x_Output_No_Distance)
                 send_OPS24x_cmd(serial_port, "\nSet yes CW Magnitudes: ", OPS24x_Output_CW_Mag)
             else:
+                send_OPS24x_cmd(serial_port, "\nSet Send Distance report: ", OPS24x_Output_Distance)
                 send_OPS24x_cmd(serial_port, "\nSet yes FMCW Magnitudes: ", OPS24x_Output_FMCW_Mag)
         else:
             send_OPS24x_cmd(serial_port, "\nSet yes Magnitudes: ", OPS24x_Output_CW_Mag)
