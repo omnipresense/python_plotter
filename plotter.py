@@ -312,6 +312,8 @@ class UI:
         complex_values_Q = None
         complex_values_T = None
         title = "OPS241x Signal Plotter"
+        min_I = 0
+        min_Q = 0
         global graph_ylim
         global expect_data
         global plot1
@@ -467,7 +469,8 @@ class UI:
                                 values = values_I
                                 np_values = np.array(values_I)
                                 np_values_I = np_values
-                                 #pdb.set_trace()
+                                #pdb.set_trace()
+                                min_I = np.min(np_values_I)
                                 mean_I = np.mean(np_values_I)
                                 np_values_I = np_values_I - mean_I
                                 if invert_i_values:
@@ -483,6 +486,7 @@ class UI:
                                 values = values_Q
                                 np_values = np.array(values_Q)
                                 np_values_Q = np_values
+                                min_Q = np.min(np_values_Q)
                                 mean_Q = np.mean(np_values_Q)
                                 np_values_Q = np_values_Q - mean_Q
                                 if options.do_voltage_convert:
@@ -545,7 +549,10 @@ class UI:
                         plot1.set_title("raw signal", loc='left')
                         plot1.set_xlabel('Samples')
                         plot1.set_ylabel('Signal amplitude')
-                        plot1.set_ylim(0-10,4095+10) # the sample signal is from 0-4095.  Never more.  Lock this one in (with margin)
+                        if (min_I < 0) or (min_Q < 0):
+                            plot1.set_ylim(-4095-10,4095+10) # the sample signal is from -4095->4095.  Never more.  Lock this one in (with margin)
+                        else:
+                            plot1.set_ylim(-0-10,4095+10) # the sample signal is from 0->4095.  Never more.  Lock this one in (with margin)
                         plot1.set_xlim(0,np_values_I.size)
                         plot1.legend(legend_arr, loc=1)
 
