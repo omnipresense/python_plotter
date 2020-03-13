@@ -325,12 +325,12 @@ class UI:
         global ax_mid
         global ax_min
         global ax_ylim
-        global ax_xlim
+        global ax_xlim_low
+        global ax_xlim_high
         global ax_border
         global ax_pulse
         global ax_do_pulse
         global ax_charts
-        global ax_bin0
         global b_setting
         global b_chart
         global chk_pulse
@@ -388,8 +388,8 @@ class UI:
         ax_mid = plt.axes([0.25, 0.75, 0.15, 0.1])
         ax_min = plt.axes([0.4, 0.75, 0.15, 0.1])
         ax_ylim = plt.axes([0.25, fft_base_y-0.023, 0.075, 0.05])
-        ax_xlim = plt.axes([0.50, fft_base_y-0.023, 0.075, 0.05])
-        ax_bin0 = plt.axes([0.65, fft_base_y-0.2, 0.4, 0.4], frameon = False)  # why the larger offset?
+        ax_xlim_low = plt.axes([0.50, fft_base_y-0.023, 0.075, 0.05])
+        ax_xlim_high = plt.axes([0.75, fft_base_y-0.023, 0.075, 0.05])
 
         ax_charts = plt.axes([.1, .33, .2, .2])
         ax_pulse = plt.axes([0.1, 0.12, 0.2, 0.15])
@@ -407,10 +407,10 @@ class UI:
         b_quit.on_clicked(self.do_quit)
         txt_ylim = TextBox(ax_ylim, 'Y axis limit ', initial = '')
         txt_ylim.on_submit(self.change_ylim)
-        txt_xlim = TextBox(ax_xlim, 'Max Bin ', initial = '')
-        txt_xlim.on_submit(self.change_xlim)
-        chk_bin = CheckButtons(ax_bin0, ['Hide Bin 0'], [False])
-        chk_bin.on_clicked(self.toggle_bin_start)
+        txt_xlim_low = TextBox(ax_xlim_low, 'Min Bin ', initial = '')
+        txt_xlim_low.on_submit(self.change_xlim_low)
+        txt_xlim_high = TextBox(ax_xlim_high, 'Max Bin ', initial = '')
+        txt_xlim_high.on_submit(self.change_xlim_high)
 
         chk_pulse = CheckButtons(ax_pulse, ['Pulse', 'Continuous'], [False, True])
         chk_pulse.on_clicked(self.change_pulse)
@@ -423,11 +423,11 @@ class UI:
         ax_mid.set_visible(False)
         ax_max.set_visible(False)
         ax_ylim.set_visible(False)
-        ax_xlim.set_visible(False)
+        ax_xlim_low.set_visible(False)
+        ax_xlim_high.set_visible(False)
         ax_pulse.set_visible(False)
         ax_do_pulse.set_visible(False)
         ax_charts.set_visible(False)
-        ax_bin0.set_visible(False)
 
         plot1.set_position([.15,.65,.8,.2])
         if plot2 is not None:
@@ -688,7 +688,15 @@ class UI:
         else:
             graph_ylim = None
 
-    def change_xlim(self, text):
+    def change_xlim_low(self, text):
+        print('Changing Low Bin Cutoff')
+        global fft_bin_low_cutoff
+        if (len(text) > 0):
+            fft_bin_low_cutoff = int(text)
+        else:
+            fft_bin_low_cutoff = 0
+
+    def change_xlim_high(self, text):
         print('Changing Bin Cutoff')
         global fft_bin_high_cutoff
         if (len(text) > 0):
@@ -742,11 +750,11 @@ class UI:
         ax_mid.set_visible(True)
         ax_max.set_visible(True)
         ax_ylim.set_visible(True)
-        ax_xlim.set_visible(True)
+        ax_xlim_low.set_visible(True)
+        ax_xlim_high.set_visible(True)
         ax_border.set_visible(True)
         ax_pulse.set_visible(True)
         ax_charts.set_visible(True)
-        ax_bin0.set_visible(True)
         ax_do_pulse.set_visible(False)
         plot1.set_visible(False)
         try:
@@ -768,10 +776,10 @@ class UI:
         ax_mid.set_visible(False)
         ax_max.set_visible(False)
         ax_ylim.set_visible(False)
-        ax_xlim.set_visible(False)
+        ax_xlim_low.set_visible(False)
+        ax_xlim_high.set_visible(False)
         ax_border.set_visible(False)
         ax_charts.set_visible(False)
-        ax_bin0.set_visible(False)
         ax_pulse.set_visible(False)
 
         chart_space = .9
@@ -871,6 +879,12 @@ def main():
     parser.add_option("--SX", dest="signal_multiply",
                       type="int", default="1",
                       help="multiplication factor to apply to signal")
+    # parser.add_option("--bin_low", dest="bin_low",
+    #                   type="int", default="0",
+    #                   help="lowest bin to display")
+    # parser.add_option("--bin_high", dest="bin_high",
+    #                   type="int", default="400",
+    #                   help="highest bin to display")
 
     (options, args) = parser.parse_args()
     if options.plot_I is None and options.plot_Q is None \
