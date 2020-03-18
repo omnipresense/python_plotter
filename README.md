@@ -7,8 +7,9 @@ The following example commands may be useful as part of installation:
 ```sh
 pip install serial  
 pip install numpy matplotlib
+pip install PyQt5 Qt5Agg
 ```
-(Use pip3 if python 3 is not your system default)
+(Use pip3 if required for your system.)
 
 ## Execution
 ```
