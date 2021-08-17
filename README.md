@@ -34,3 +34,15 @@ This is the default on Windows and Mac.  If using a Raspberry Pi shell terminal,
 or connect to the pi via VNC rather than ssh. 
 
 Depending on your system configuration (such as Windowx 10's WSL), you may need to change matplotlib's graphical backend dependency.
+
+## Termination
+
+On linux platforms, ^C or ^\ will stop programs running in the shell.  
+Alternatively, from a diffferent shell, you can find the process and then kill it.
+(To find a process, ```ps -ef | grep python_plotter``` will find it.
+```pkill python_plotter```  may be faster.
+If you are not the same user, you might need sudo.  If it doesn't respond, you might need -9.  
+So, presenting that the ps found the process 1234, then ```sudo kill -9 1234``` is the most aggressive you can get.   
+
+On Windows, ^C might work.  If not, ^Break will if you have an old keyboard, or Ctrl - Fn - S  may work.  
+You can also find it in Windows Task Manager (choose it from the Ctrl-Alt-Delete menu) then find the command terminal running pythonm then press the [End Task] button
