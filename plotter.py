@@ -162,6 +162,7 @@ class UI:
         global is_OPS243_A
         global is_OPS243_C
         global is_doppler
+        global is_fmcw
         global invert_i_values
         global sample_count
         global NFFT
@@ -184,12 +185,15 @@ class UI:
                 is_OPS243_A = True
             elif rtn_val.find("ombo") >= 0:
                 is_OPS243_C = True
+            elif rtn_val.find("OPS243-C") >= 0:
+                is_OPS243_C = True
         else:
             if rtn_val.find("oppler") >= 0:
                 is_OPS241_OPS242_A = True
             elif rtn_val.find("FMCW") >= 0:
                 is_OPS241_OPS242_B = True
 
+        is_fmcw = False
         is_doppler = False
         if options.is_doppler:
             is_doppler = True
@@ -218,6 +222,7 @@ class UI:
                 send_OPS24x_cmd(serial_port, "\nSet No Distance report: ", OPS24x_Output_No_Distance)
                 send_OPS24x_cmd(serial_port, "\nSet yes CW Magnitudes: ", OPS24x_Output_CW_Mag)
             else:
+                is_fmcw = True
                 send_OPS24x_cmd(serial_port, "\nSet Send Distance report: ", OPS24x_Output_Distance)
                 send_OPS24x_cmd(serial_port, "\nSet yes FMCW Magnitudes: ", OPS24x_Output_FMCW_Mag)
         else:
@@ -343,6 +348,8 @@ class UI:
 
         if is_doppler:
             title = "OPS24x Doppler Plotter"
+        if is_fmcw:
+            title = "OPS24x FMCW Plotter"
 
         if options.plot_IQ_FFT:
             f, (plot1, plot2, plot3) = plt.subplots(3, 1)
