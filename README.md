@@ -9,7 +9,7 @@ pip install serial
 pip install numpy matplotlib
 pip install PyQt5 Qt5Agg
 ```
-(Use pip3 if required for your system.)
+(Use pip3 if required for your system. May need to ignore QtAgg to install)
 
 ## Execution
 ```
